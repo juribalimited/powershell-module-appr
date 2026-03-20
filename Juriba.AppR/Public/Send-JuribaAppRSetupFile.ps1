@@ -86,8 +86,12 @@ function Send-JuribaAppRSetupFile {
         while ($chunkIndex -lt $totalChunks) {
             $bytesRead = $fileStream.Read($buffer, 0, $chunkSize)
 
-            # Create a temp file for the chunk
-            $chunkTempPath = [System.IO.Path]::GetTempFileName()
+            # Create a temp file for the chunk, using the original filename
+            # so the multipart Content-Disposition has the correct extension.
+            # The server validates the filename and rejects .tmp files.
+            $chunkTempDir = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), $uuid)
+            if (-not (Test-Path $chunkTempDir)) { $null = New-Item -Path $chunkTempDir -ItemType Directory }
+            $chunkTempPath = [System.IO.Path]::Combine($chunkTempDir, $fileName)
             try {
                 [System.IO.File]::WriteAllBytes($chunkTempPath, $buffer[0..($bytesRead - 1)])
 
@@ -151,6 +155,10 @@ function Send-JuribaAppRSetupFile {
     finally {
         $fileStream.Close()
         $fileStream.Dispose()
+        # Clean up the temp chunk directory
+        if ($chunkTempDir -and (Test-Path $chunkTempDir)) {
+            Remove-Item $chunkTempDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
     }
 
     Write-Progress -Activity "Uploading $fileName" -Completed
