@@ -61,8 +61,8 @@ function Connect-JuribaAppR {
 
     Write-Host "Connected to Juriba App Readiness at $Instance" -ForegroundColor Green
 
-    # Return user info for confirmation
-    if ($whoami) {
-        Write-Verbose "Authenticated user info: $($whoami | ConvertTo-Json -Compress -Depth 2)"
+    # Log response details if verbose
+    if ($response) {
+        Write-Verbose "Auth validation successful (HTTP $($response.StatusCode))"
     }
 }

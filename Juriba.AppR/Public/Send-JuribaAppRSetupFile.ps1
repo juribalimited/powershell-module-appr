@@ -95,24 +95,11 @@ function Send-JuribaAppRSetupFile {
             try {
                 [System.IO.File]::WriteAllBytes($chunkTempPath, $buffer[0..($bytesRead - 1)])
 
-                # Build multipart form data
+                # Build multipart form data using HttpClient for full control over
+                # headers. PowerShell's Invoke-WebRequest -Form may not reliably
+                # pass custom headers (x-api-key) with multipart uploads.
                 $chunkUri = "{0}/{1}" -f $conn.Instance, $chunkEndpoint
-
-                # Use Invoke-WebRequest with form for multipart upload
-                # Field names must match Dropzone.js 5.9.3 chunked upload params exactly
                 $chunkByteOffset = $chunkIndex * $chunkSize
-                $form = @{
-                    dzUuid             = $uuid
-                    dzChunkIndex       = $chunkIndex.ToString()
-                    dzTotalFileSize    = $fileSize.ToString()
-                    dzCurrentChunkSize = $bytesRead.ToString()
-                    dzTotalChunkCount  = $totalChunks.ToString()
-                    dzChunkByteOffset  = $chunkByteOffset.ToString()
-                    dzChunkSize        = $chunkSize.ToString()
-                    dzFilename         = $fileName
-                    userId             = "1"
-                    file               = Get-Item $chunkTempPath
-                }
 
                 $percentComplete = [Math]::Round(($chunkIndex + 1) / $totalChunks * 100)
                 Write-Progress -Activity "Uploading $fileName" `
@@ -122,34 +109,44 @@ function Send-JuribaAppRSetupFile {
                 Write-Verbose "Uploading chunk $($chunkIndex + 1)/$totalChunks ($bytesRead bytes)"
 
                 try {
-                    $uploadSplat = @{
-                        Uri     = $chunkUri
-                        Method  = 'POST'
-                        Headers = $headers
-                        Form    = $form
+                    $httpClient = [System.Net.Http.HttpClient]::new()
+                    $httpClient.DefaultRequestHeaders.Add("x-api-key", $conn.APIKey)
+                    $httpClient.DefaultRequestHeaders.Add("Accept", "application/json")
+
+                    $multipartContent = [System.Net.Http.MultipartFormDataContent]::new()
+
+                    # Add Dropzone.js 5.9.3 chunked upload fields
+                    $multipartContent.Add([System.Net.Http.StringContent]::new($uuid), "dzUuid")
+                    $multipartContent.Add([System.Net.Http.StringContent]::new($chunkIndex.ToString()), "dzChunkIndex")
+                    $multipartContent.Add([System.Net.Http.StringContent]::new($fileSize.ToString()), "dzTotalFileSize")
+                    $multipartContent.Add([System.Net.Http.StringContent]::new($bytesRead.ToString()), "dzCurrentChunkSize")
+                    $multipartContent.Add([System.Net.Http.StringContent]::new($totalChunks.ToString()), "dzTotalChunkCount")
+                    $multipartContent.Add([System.Net.Http.StringContent]::new($chunkByteOffset.ToString()), "dzChunkByteOffset")
+                    $multipartContent.Add([System.Net.Http.StringContent]::new($chunkSize.ToString()), "dzChunkSize")
+                    $multipartContent.Add([System.Net.Http.StringContent]::new($fileName), "dzFilename")
+                    $multipartContent.Add([System.Net.Http.StringContent]::new("1"), "userId")
+
+                    # Add the file content
+                    $chunkBytes = [System.IO.File]::ReadAllBytes($chunkTempPath)
+                    $fileContent = [System.Net.Http.ByteArrayContent]::new($chunkBytes)
+                    $fileContent.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::new("application/octet-stream")
+                    $multipartContent.Add($fileContent, "file", $fileName)
+
+                    $uploadResponse = $httpClient.PostAsync($chunkUri, $multipartContent).GetAwaiter().GetResult()
+                    if (-not $uploadResponse.IsSuccessStatusCode) {
+                        $respBody = $uploadResponse.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+                        throw "HTTP $([int]$uploadResponse.StatusCode) $($uploadResponse.ReasonPhrase): $respBody"
                     }
-                    # Use WebSession (cookie auth) when available — some servers
-                    # reject x-api-key on the uploadChunk endpoint.
-                    if ($conn.WebSession) {
-                        $uploadSplat['WebSession'] = $conn.WebSession
-                    }
-                    $null = Invoke-WebRequest @uploadSplat
                 }
                 catch {
-                    $errDetail = $_.Exception.Message
-                    if ($_.Exception.Response) {
-                        try {
-                            $errStream = $_.Exception.Response.GetResponseStream()
-                            $errReader = New-Object System.IO.StreamReader($errStream)
-                            $errBody = $errReader.ReadToEnd()
-                            $errReader.Close()
-                            if ($errBody) { $errDetail = $errBody }
-                        } catch {}
-                    }
                     $fileStream.Close()
                     $fileStream.Dispose()
                     Write-Progress -Activity "Uploading $fileName" -Completed
-                    throw "Chunk $($chunkIndex + 1)/$totalChunks upload failed: $errDetail"
+                    throw "Chunk $($chunkIndex + 1)/$totalChunks upload failed: $($_.Exception.Message)"
+                }
+                finally {
+                    if ($multipartContent) { $multipartContent.Dispose() }
+                    if ($httpClient)        { $httpClient.Dispose() }
                 }
 
             }
