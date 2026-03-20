@@ -122,7 +122,7 @@ function New-JuribaAppRApplication {
     # Build the applicationInfo sub-object
     $applicationInfo = @{
         sourceFileName = $FileName
-        source         = 1    # TypeOfSource: 1 = valid source for upload+repackage
+        source         = 2    # TypeOfSource: 2 = local file upload
         actionType     = 1    # TypeOfAction: 1 = repackage
     }
 
@@ -175,13 +175,14 @@ function New-JuribaAppRApplication {
         }
 
         $result = Invoke-JuribaAppRRestMethod -Instance $conn.Instance -APIKey $conn.APIKey `
-            -Uri $uri -Method POST -Body $body
+            -Uri $uri -Method POST -Body $body -ErrorAction Stop
 
         # Return a useful object with the UUID for tracking
         if ($result) {
             $result | Add-Member -NotePropertyName 'Uuid' -NotePropertyValue $Uuid -Force -PassThru
         }
         else {
+            # API returned success but empty body — return tracking object
             [PSCustomObject]@{
                 Uuid     = $Uuid
                 FileName = $FileName
