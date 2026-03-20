@@ -1,0 +1,20 @@
+# IDE
+.vscode/
+.idea/
+*.suo
+*.user
+
+# OS
+.DS_Store
+Thumbs.db
+
+# PowerShell
+*.pssproj
+*.psproj
+
+# Test results
+TestResults/
+
+# Temp files
+*.tmp
+*.bak
