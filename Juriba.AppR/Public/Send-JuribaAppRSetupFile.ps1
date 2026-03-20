@@ -72,7 +72,10 @@ function Send-JuribaAppRSetupFile {
     $chunkEndpoint = if ($Protected) { "api/uploadChunk/protected" } else { "api/uploadChunk" }
     $combineEndpoint = if ($Protected) { "api/v2/uploadChunk/protected/async" } else { "api/v2/uploadChunk/async" }
 
-    $headers = @{ "x-api-key" = $conn.APIKey }
+    $headers = @{
+        "x-api-key" = $conn.APIKey
+        "Accept"    = "application/json"
+    }
 
     # Upload each chunk
     $fileStream = [System.IO.File]::OpenRead($fileInfo.FullName)

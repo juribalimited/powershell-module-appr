@@ -36,9 +36,11 @@ function Invoke-JuribaAppRRestMethod {
     # Build full URI
     $fullUri = "{0}/{1}" -f $Instance.TrimEnd('/'), $Uri.TrimStart('/')
 
-    # Build headers
+    # Build headers — Accept: application/json is critical; without it many
+    # endpoints return the SPA HTML instead of JSON data.
     $headers = @{
         "x-api-key" = $APIKey
+        "Accept"    = "application/json"
     }
 
     # Build splat for Invoke-RestMethod
