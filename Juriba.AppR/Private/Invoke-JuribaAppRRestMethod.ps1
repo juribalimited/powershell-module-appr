@@ -58,6 +58,7 @@ function Invoke-JuribaAppRRestMethod {
         else {
             $splat['Body'] = $Body | ConvertTo-Json -Depth 10
         }
+        Write-Verbose "Request body: $($splat['Body'])"
     }
 
     if ($OutFile) {
@@ -73,24 +74,35 @@ function Invoke-JuribaAppRRestMethod {
     catch {
         $statusCode = $null
         $errorMessage = $_.Exception.Message
+        $errorBody = $null
+
+        # PowerShell 7: ErrorDetails.Message contains the response body
+        if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+            $errorBody = $_.ErrorDetails.Message
+        }
 
         if ($_.Exception.Response) {
             $statusCode = [int]$_.Exception.Response.StatusCode
 
-            try {
-                $errorStream = $_.Exception.Response.GetResponseStream()
-                $reader = New-Object System.IO.StreamReader($errorStream)
-                $errorBody = $reader.ReadToEnd()
-                $reader.Close()
-
-                if ($errorBody) {
-                    $errorMessage = "{0} - {1}" -f $errorMessage, $errorBody
+            # PowerShell 5.1 fallback: read from response stream
+            if (-not $errorBody) {
+                try {
+                    $errorStream = $_.Exception.Response.GetResponseStream()
+                    $reader = New-Object System.IO.StreamReader($errorStream)
+                    $errorBody = $reader.ReadToEnd()
+                    $reader.Close()
+                }
+                catch {
+                    # Could not read error body
                 }
             }
-            catch {
-                # Could not read error body, use original message
-            }
         }
+
+        if ($errorBody) {
+            $errorMessage = "{0} - {1}" -f $errorMessage, $errorBody
+        }
+
+        Write-Verbose "API Error [$statusCode]: $errorMessage"
 
         switch ($statusCode) {
             401 { Write-Error "Authentication failed. Please check your API key. $errorMessage" }
