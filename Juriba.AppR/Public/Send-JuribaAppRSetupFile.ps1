@@ -175,9 +175,22 @@ function Send-JuribaAppRSetupFile {
     }
 
     $combineUri = "{0}/{1}" -f $conn.Instance, $combineEndpoint
-    $combineResult = Invoke-RestMethod -Uri $combineUri -Method PUT `
-        -Headers $headers -ContentType 'application/json' `
-        -Body ($combineBody | ConvertTo-Json)
+    $jsonBody = $combineBody | ConvertTo-Json -Compress
+    Write-Verbose "Combine URI: $combineUri"
+    Write-Verbose "Combine body: $jsonBody"
+
+    try {
+        $combineResult = Invoke-RestMethod -Uri $combineUri -Method PUT `
+            -Headers $headers -ContentType 'application/json' `
+            -Body $jsonBody
+    }
+    catch {
+        $errDetail = $_.Exception.Message
+        if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+            $errDetail = $_.ErrorDetails.Message
+        }
+        throw "Combine failed: $errDetail"
+    }
 
     Write-Verbose "Upload complete. UUID: $uuid"
 
