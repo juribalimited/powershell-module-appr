@@ -39,7 +39,7 @@ function Connect-JuribaAppR {
             "Accept"    = "application/json"
         }
         $whoami = Invoke-RestMethod -Uri "$Instance/api/user/whoami" -Headers $headers -Method GET
-        Write-Verbose "Successfully connected to $Instance as $($whoami.userName)"
+        Write-Verbose "Successfully connected to $Instance"
     }
     catch {
         throw "Failed to connect to '$Instance'. Please verify the instance URL and API key. Error: $($_.Exception.Message)"
@@ -58,6 +58,6 @@ function Connect-JuribaAppR {
 
     # Return user info for confirmation
     if ($whoami) {
-        Write-Verbose "Authenticated as: $($whoami.userName) ($($whoami.emailAddress))"
+        Write-Verbose "Authenticated user info: $($whoami | ConvertTo-Json -Compress -Depth 2)"
     }
 }
