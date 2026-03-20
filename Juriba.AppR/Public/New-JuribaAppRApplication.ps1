@@ -122,7 +122,7 @@ function New-JuribaAppRApplication {
     # Build the applicationInfo sub-object
     $applicationInfo = @{
         sourceFileName = $FileName
-        source         = 0    # TypeOfSource: 0 = local upload
+        source         = 1    # TypeOfSource: 1 = valid source for upload+repackage
         actionType     = 1    # TypeOfAction: 1 = repackage
     }
 
@@ -141,13 +141,24 @@ function New-JuribaAppRApplication {
         uploadType   = 0
     }
 
+    # Build the packageTypeMatrixModel — required by the server to resolve the
+    # source-action mapping.  Values come from GET /api/packaging/upload/packageTypesMatrix.
+    # from=0 (TypeOfPackageAction: default), sourceAction=1 (matches applicationInfo.source),
+    # to=0 (OutputPackages: default/all).
+    $packageTypeMatrixModel = @{
+        from         = 0
+        sourceAction = 1
+        to           = 0
+    }
+
     # Build the main request body (AddApplicationParentViewModel)
     $body = @{
-        uuid              = $Uuid
-        applicationInfo   = $applicationInfo
-        uploadChunkModel  = $uploadChunkModel
-        setAsMainSource   = $true
-        runImmediately    = [bool]$RunImmediately
+        uuid                   = $Uuid
+        applicationInfo        = $applicationInfo
+        uploadChunkModel       = $uploadChunkModel
+        packageTypeMatrixModel = $packageTypeMatrixModel
+        setAsMainSource        = $true
+        runImmediately         = [bool]$RunImmediately
     }
 
     if ($VMGroupId) { $body['vmGroupId'] = $VMGroupId }
