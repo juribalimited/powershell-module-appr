@@ -187,10 +187,19 @@ if (-not $SkipUpload) {
 
     if ($upload) {
         $creation = Test-Cmdlet "New-JuribaAppRApplication" {
-            # Don't pass -Name, -Manufacturer, or -Version — let the server
-            # auto-detect from the installer metadata (same as the UI does).
-            $c = New-JuribaAppRApplication -Uuid $upload.Uuid -FileName $upload.FileName `
-                -FileSize $upload.FileSize -TotalChunks $upload.TotalChunks -Verbose
+            # Pass metadata extracted from the installer by Send-JuribaAppRSetupFile.
+            # The server requires name, manufacturer (min 3 chars), and appVer.
+            $splatCreate = @{
+                Uuid        = $upload.Uuid
+                FileName    = $upload.FileName
+                FileSize    = $upload.FileSize
+                TotalChunks = $upload.TotalChunks
+                Verbose     = $true
+            }
+            if ($upload.ProductName)    { $splatCreate['Name']         = $upload.ProductName }
+            if ($upload.CompanyName)    { $splatCreate['Manufacturer'] = $upload.CompanyName }
+            if ($upload.ProductVersion) { $splatCreate['Version']      = $upload.ProductVersion }
+            $c = New-JuribaAppRApplication @splatCreate
             Write-Host "  Creation response: $($c | ConvertTo-Json -Compress)"
             $c
         }

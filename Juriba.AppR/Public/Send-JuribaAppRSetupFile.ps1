@@ -194,12 +194,32 @@ function Send-JuribaAppRSetupFile {
 
     Write-Verbose "Upload complete. UUID: $uuid"
 
+    # Extract FileVersionInfo metadata (ProductName, CompanyName, etc.)
+    # This is the same data the Angular UI reads client-side before posting.
+    $productName  = $null
+    $companyName  = $null
+    $productVersion = $null
+    try {
+        $versionInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($fileInfo.FullName)
+        if ($versionInfo.ProductName)      { $productName    = $versionInfo.ProductName.Trim() }
+        if ($versionInfo.CompanyName)       { $companyName    = $versionInfo.CompanyName.Trim() }
+        if ($versionInfo.ProductVersion)    { $productVersion = $versionInfo.ProductVersion.Trim() }
+        elseif ($versionInfo.FileVersion)   { $productVersion = $versionInfo.FileVersion.Trim() }
+        Write-Verbose "File metadata: Name='$productName', Manufacturer='$companyName', Version='$productVersion'"
+    }
+    catch {
+        Write-Verbose "Could not read FileVersionInfo: $($_.Exception.Message)"
+    }
+
     # Return an object with the upload details needed for New-JuribaAppRApplication
     [PSCustomObject]@{
-        Uuid         = $uuid
-        FileName     = $fileName
-        FileSize     = $fileSize
-        TotalChunks  = $totalChunks
-        CombineResult = $combineResult
+        Uuid            = $uuid
+        FileName        = $fileName
+        FileSize        = $fileSize
+        TotalChunks     = $totalChunks
+        CombineResult   = $combineResult
+        ProductName     = $productName
+        CompanyName     = $companyName
+        ProductVersion  = $productVersion
     }
 }

@@ -119,9 +119,11 @@ function New-JuribaAppRApplication {
 
     $conn = Get-JuribaAppRConnection -Instance $Instance -APIKey $APIKey
 
-    # The Angular UI extracts metadata client-side before posting; the server
-    # does NOT auto-detect name/version/manufacturer from the binary.  We must
-    # always supply name, manufacturer (min 3 chars), and appVer in the request.
+    # The server does NOT auto-detect name/version/manufacturer from the binary.
+    # We must always supply name, manufacturer (min 3 chars), and appVer.
+    # Use explicit parameter values first, then fall back to the file name.
+    # Callers should pass metadata extracted from Send-JuribaAppRSetupFile
+    # (ProductName, CompanyName, ProductVersion) via -Name, -Manufacturer, -Version.
     $appName   = if ($Name)         { $Name }
                  else { [System.IO.Path]::GetFileNameWithoutExtension($FileName) }
     $appMfg    = if ($Manufacturer) { $Manufacturer }
