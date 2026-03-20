@@ -119,18 +119,28 @@ function New-JuribaAppRApplication {
 
     $conn = Get-JuribaAppRConnection -Instance $Instance -APIKey $APIKey
 
+    # The Angular UI extracts metadata client-side before posting; the server
+    # does NOT auto-detect name/version/manufacturer from the binary.  We must
+    # always supply name, manufacturer (min 3 chars), and appVer in the request.
+    $appName   = if ($Name)         { $Name }
+                 else { [System.IO.Path]::GetFileNameWithoutExtension($FileName) }
+    $appMfg    = if ($Manufacturer) { $Manufacturer }
+                 else { "Unknown" }
+    $appVer    = if ($Version)      { $Version }
+                 else { "1.0" }
+
     # Build the applicationInfo sub-object
     $applicationInfo = @{
         sourceFileName = $FileName
+        name           = $appName
+        manufacturer   = $appMfg
+        appVer         = $appVer
         source         = 2    # TypeOfSource: 2 = local file upload
         actionType     = 1    # TypeOfAction: 1 = repackage
     }
 
-    if ($Name) { $applicationInfo['name'] = $Name }
     if ($CommandLine) { $applicationInfo['cmdLine'] = $CommandLine }
     if ($UninstallCommandLine) { $applicationInfo['uninstall'] = $UninstallCommandLine }
-    if ($Manufacturer) { $applicationInfo['manufacturer'] = $Manufacturer }
-    if ($Version) { $applicationInfo['appVer'] = $Version }
 
     # Build the uploadChunkModel (tells the server which uploaded chunks to use)
     $uploadChunkModel = @{
