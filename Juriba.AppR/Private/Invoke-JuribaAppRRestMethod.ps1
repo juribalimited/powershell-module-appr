@@ -104,11 +104,12 @@ function Invoke-JuribaAppRRestMethod {
 
         Write-Verbose "API Error [$statusCode]: $errorMessage"
 
+        # Use throw (not Write-Error) so callers always see a terminating error
         switch ($statusCode) {
-            401 { Write-Error "Authentication failed. Please check your API key. $errorMessage" }
-            403 { Write-Error "Access denied. You do not have permission for this operation. $errorMessage" }
-            404 { Write-Error "Resource not found. $errorMessage" }
-            default { Write-Error "API request failed: $errorMessage" }
+            401 { throw "Authentication failed. Please check your API key. $errorMessage" }
+            403 { throw "Access denied. You do not have permission for this operation. $errorMessage" }
+            404 { throw "Resource not found. $errorMessage" }
+            default { throw "API request failed: $errorMessage" }
         }
     }
 }

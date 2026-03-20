@@ -32,15 +32,17 @@ function Connect-JuribaAppR {
 
     $Instance = $Instance.TrimEnd('/')
 
-    # Validate connection by calling the about/info endpoint
+    # Validate connection by calling the whoami endpoint (reliable with API key auth)
     try {
-        $headers = @{ "x-api-key" = $APIKey }
-        $aboutInfo = Invoke-RestMethod -Uri "$Instance/api/app/about/info" -Headers $headers -Method GET
-        Write-Verbose "Successfully connected to $Instance"
+        $headers = @{
+            "x-api-key" = $APIKey
+            "Accept"    = "application/json"
+        }
+        $whoami = Invoke-RestMethod -Uri "$Instance/api/user/whoami" -Headers $headers -Method GET
+        Write-Verbose "Successfully connected to $Instance as $($whoami.userName)"
     }
     catch {
-        Write-Error "Failed to connect to '$Instance'. Please verify the instance URL and API key. Error: $($_.Exception.Message)"
-        return
+        throw "Failed to connect to '$Instance'. Please verify the instance URL and API key. Error: $($_.Exception.Message)"
     }
 
     # Store connection securely
@@ -54,8 +56,8 @@ function Connect-JuribaAppR {
 
     Write-Host "Connected to Juriba App Readiness at $Instance" -ForegroundColor Green
 
-    # Return about info if available
-    if ($aboutInfo) {
-        $aboutInfo
+    # Return user info for confirmation
+    if ($whoami) {
+        Write-Verbose "Authenticated as: $($whoami.userName) ($($whoami.emailAddress))"
     }
 }

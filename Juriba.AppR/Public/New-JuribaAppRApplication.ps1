@@ -187,7 +187,7 @@ function New-JuribaAppRApplication {
         }
 
         $result = Invoke-JuribaAppRRestMethod -Instance $conn.Instance -APIKey $conn.APIKey `
-            -Uri $uri -Method POST -Body $body -ErrorAction Stop
+            -Uri $uri -Method POST -Body $body
 
         # Return a useful object with the UUID for tracking
         if ($result) {
