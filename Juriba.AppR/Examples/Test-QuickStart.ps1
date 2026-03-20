@@ -86,8 +86,8 @@ $user = Test-Cmdlet "Get-JuribaAppRUser (whoami)" {
     $u
 }
 
-$apps = Test-Cmdlet "Get-JuribaAppRApplicationList (V2)" {
-    $list = Get-JuribaAppRApplicationList -Mode V2
+$apps = Test-Cmdlet "Get-JuribaAppRApplicationList -AllUsers" {
+    $list = Get-JuribaAppRApplicationList -AllUsers
     Write-Host "  Found $($list.Count) applications"
     $list
 }
@@ -146,8 +146,8 @@ Test-Cmdlet "Get-JuribaAppRGenericIntegration" {
     Write-Host "  Found $count generic integration(s)"
 }
 
-Test-Cmdlet "Search-JuribaAppRKnowledgeBase -SearchTerm 'Firefox'" {
-    $kb = Search-JuribaAppRKnowledgeBase -SearchTerm 'Firefox'
+Test-Cmdlet "Search-JuribaAppRKnowledgeBase -Search 'Firefox'" {
+    $kb = Search-JuribaAppRKnowledgeBase -Search 'Firefox'
     $count = if ($kb) { @($kb).Count } else { 0 }
     Write-Host "  Found $count KB result(s)"
 }

@@ -111,8 +111,26 @@ function Send-JuribaAppRSetupFile {
 
                 Write-Verbose "Uploading chunk $($chunkIndex + 1)/$totalChunks ($bytesRead bytes)"
 
-                $null = Invoke-WebRequest -Uri $chunkUri -Method POST `
-                    -Headers $headers -Form $form
+                try {
+                    $null = Invoke-WebRequest -Uri $chunkUri -Method POST `
+                        -Headers $headers -Form $form
+                }
+                catch {
+                    $errDetail = $_.Exception.Message
+                    if ($_.Exception.Response) {
+                        try {
+                            $errStream = $_.Exception.Response.GetResponseStream()
+                            $errReader = New-Object System.IO.StreamReader($errStream)
+                            $errBody = $errReader.ReadToEnd()
+                            $errReader.Close()
+                            if ($errBody) { $errDetail = $errBody }
+                        } catch {}
+                    }
+                    $fileStream.Close()
+                    $fileStream.Dispose()
+                    Write-Progress -Activity "Uploading $fileName" -Completed
+                    throw "Chunk $($chunkIndex + 1)/$totalChunks upload failed: $errDetail"
+                }
 
             }
             finally {
