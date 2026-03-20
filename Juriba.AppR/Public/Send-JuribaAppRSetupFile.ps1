@@ -62,7 +62,7 @@ function Send-JuribaAppRSetupFile {
     $fileName = $fileInfo.Name
     $fileSize = $fileInfo.Length
     $chunkSize = $ChunkSizeMB * 1024 * 1024
-    $totalChunks = [Math]::Ceiling($fileSize / $chunkSize)
+    $totalChunks = [int][Math]::Ceiling($fileSize / $chunkSize)
     $uuid = [Guid]::NewGuid().ToString()
 
     Write-Verbose "Uploading '$fileName' ($([Math]::Round($fileSize / 1MB, 2)) MB) in $totalChunks chunk(s)"
