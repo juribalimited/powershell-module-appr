@@ -82,7 +82,7 @@ function Watch-JuribaAppRApplicationStatus {
         }
         catch {
             if (-not $Quiet) {
-                Write-Warning "[$timestamp] Poll #$pollCount: Failed to get tracker - $($_.Exception.Message)"
+                Write-Warning "[$timestamp] Poll #${pollCount}: Failed to get tracker - $($_.Exception.Message)"
             }
             Start-Sleep -Seconds $IntervalSeconds
             continue
