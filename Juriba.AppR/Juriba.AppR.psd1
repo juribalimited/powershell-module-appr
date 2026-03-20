@@ -56,9 +56,12 @@
         # Query - Quality Review
         "Get-JuribaAppRQualityReview",
 
-        # Add / Modify Applications
+        # Upload / Create / Monitor Applications
+        "Send-JuribaAppRSetupFile",
         "New-JuribaAppRApplication",
         "Get-JuribaAppRApplicationCreationState",
+        "Watch-JuribaAppRApplicationCreation",
+        "Watch-JuribaAppRApplicationStatus",
         "Set-JuribaAppRApplication",
         "Set-JuribaAppRApplicationOwner",
         "Set-JuribaAppRApplicationCommandLine",
