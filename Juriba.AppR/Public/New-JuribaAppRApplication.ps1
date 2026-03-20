@@ -122,6 +122,8 @@ function New-JuribaAppRApplication {
     # Build the applicationInfo sub-object
     $applicationInfo = @{
         sourceFileName = $FileName
+        source         = 0    # TypeOfSource: 0 = local upload
+        actionType     = 1    # TypeOfAction: 1 = repackage
     }
 
     if ($Name) { $applicationInfo['name'] = $Name }
