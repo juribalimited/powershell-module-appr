@@ -188,6 +188,7 @@ if (-not $SkipUpload) {
     if ($upload) {
         $creation = Test-Cmdlet "New-JuribaAppRApplication" {
             $c = New-JuribaAppRApplication -Uuid $upload.Uuid -FileName $upload.FileName `
+                -FileSize $upload.FileSize -TotalChunks $upload.TotalChunks `
                 -Name "Test App $(Get-Date -Format 'yyyyMMdd-HHmmss')" `
                 -Manufacturer "Test" -Version "1.0.0" -Verbose
             Write-Host "  Creation response: $($c | ConvertTo-Json -Compress)"

@@ -25,6 +25,10 @@ function New-JuribaAppRApplication {
       uploaded file on the server.
       .PARAMETER FileName
       The original file name of the uploaded setup file. Returned by Send-JuribaAppRSetupFile.
+      .PARAMETER FileSize
+      The size in bytes of the uploaded file. Returned by Send-JuribaAppRSetupFile.
+      .PARAMETER TotalChunks
+      The number of chunks the file was split into during upload. Returned by Send-JuribaAppRSetupFile.
       .PARAMETER Name
       Optional override name for the application. If not specified, the name is
       derived from the uploaded setup file.
@@ -49,16 +53,19 @@ function New-JuribaAppRApplication {
       format (e.g. an MSI or IntuneWin that does not need repackaging).
       .EXAMPLE
       $upload = Send-JuribaAppRSetupFile -FilePath "C:\Installers\Firefox-Setup.exe"
-      New-JuribaAppRApplication -Uuid $upload.Uuid -FileName $upload.FileName
+      New-JuribaAppRApplication -Uuid $upload.Uuid -FileName $upload.FileName `
+          -FileSize $upload.FileSize -TotalChunks $upload.TotalChunks
       Uploads a file and creates an application with default settings.
       .EXAMPLE
       $upload = Send-JuribaAppRSetupFile -FilePath "C:\Installers\App.exe"
       New-JuribaAppRApplication -Uuid $upload.Uuid -FileName $upload.FileName `
+          -FileSize $upload.FileSize -TotalChunks $upload.TotalChunks `
           -Name "My App 2.0" -CommandLine "/S /v/qn" -RunImmediately
       Creates an application with overrides and starts packaging immediately.
       .EXAMPLE
       $upload = Send-JuribaAppRSetupFile -FilePath "C:\Packages\App.msi"
-      $app = New-JuribaAppRApplication -Uuid $upload.Uuid -FileName $upload.FileName -PrePackaged
+      $app = New-JuribaAppRApplication -Uuid $upload.Uuid -FileName $upload.FileName `
+          -FileSize $upload.FileSize -TotalChunks $upload.TotalChunks -PrePackaged
       Creates a pre-packaged application (no repackaging needed).
     #>
 
@@ -75,6 +82,12 @@ function New-JuribaAppRApplication {
 
         [Parameter(Mandatory = $true)]
         [string]$FileName,
+
+        [Parameter(Mandatory = $true)]
+        [long]$FileSize,
+
+        [Parameter(Mandatory = $true)]
+        [int]$TotalChunks,
 
         [Parameter(Mandatory = $false)]
         [string]$Name,
@@ -117,11 +130,22 @@ function New-JuribaAppRApplication {
     if ($Manufacturer) { $applicationInfo['manufacturer'] = $Manufacturer }
     if ($Version) { $applicationInfo['appVer'] = $Version }
 
+    # Build the uploadChunkModel (tells the server which uploaded chunks to use)
+    $uploadChunkModel = @{
+        dzIdentifier = $Uuid
+        fileName     = $FileName
+        expectedBytes = $FileSize
+        totalChunks  = $TotalChunks
+        uploadType   = 0
+    }
+
     # Build the main request body (AddApplicationParentViewModel)
     $body = @{
-        uuid            = $Uuid
-        applicationInfo = $applicationInfo
-        runImmediately  = [bool]$RunImmediately
+        uuid              = $Uuid
+        applicationInfo   = $applicationInfo
+        uploadChunkModel  = $uploadChunkModel
+        setAsMainSource   = $true
+        runImmediately    = [bool]$RunImmediately
     }
 
     if ($VMGroupId) { $body['vmGroupId'] = $VMGroupId }
