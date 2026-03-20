@@ -187,10 +187,10 @@ if (-not $SkipUpload) {
 
     if ($upload) {
         $creation = Test-Cmdlet "New-JuribaAppRApplication" {
+            # Don't pass -Name, -Manufacturer, or -Version — let the server
+            # auto-detect from the installer metadata (same as the UI does).
             $c = New-JuribaAppRApplication -Uuid $upload.Uuid -FileName $upload.FileName `
-                -FileSize $upload.FileSize -TotalChunks $upload.TotalChunks `
-                -Name "Test App $(Get-Date -Format 'yyyyMMdd-HHmmss')" `
-                -Manufacturer "Test" -Version "1.0.0" -Verbose
+                -FileSize $upload.FileSize -TotalChunks $upload.TotalChunks -Verbose
             Write-Host "  Creation response: $($c | ConvertTo-Json -Compress)"
             $c
         }
