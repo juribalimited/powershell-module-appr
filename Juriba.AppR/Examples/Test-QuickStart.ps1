@@ -95,24 +95,24 @@ $apps = Test-Cmdlet "Get-JuribaAppRApplicationList -AllUsers" {
 $firstAppId = if ($apps -and $apps.Count -gt 0) { $apps[0].basic.id } else { $null }
 
 if ($firstAppId) {
-    Test-Cmdlet "Get-JuribaAppRApplication -Id $firstAppId" {
-        $app = Get-JuribaAppRApplication -Id $firstAppId
+    Test-Cmdlet "Get-JuribaAppRApplication -AppId $firstAppId" {
+        $app = Get-JuribaAppRApplication -AppId $firstAppId
         Write-Host "  App: $($app.basic.name) v$($app.basic.applicationVersion) by $($app.basic.manufacturer)"
     }
 
-    Test-Cmdlet "Get-JuribaAppRApplication -Id $firstAppId -Basic" {
-        $basic = Get-JuribaAppRApplication -Id $firstAppId -Basic
+    Test-Cmdlet "Get-JuribaAppRApplication -AppId $firstAppId -Basic" {
+        $basic = Get-JuribaAppRApplication -AppId $firstAppId -Basic
         Write-Host "  Name=$($basic.applicationName), Mfg=$($basic.manufacturer)"
     }
 
-    Test-Cmdlet "Get-JuribaAppRApplicationEvent -ApplicationId $firstAppId" {
-        $events = Get-JuribaAppRApplicationEvent -ApplicationId $firstAppId
+    Test-Cmdlet "Get-JuribaAppRApplicationEvent -AppId $firstAppId" {
+        $events = Get-JuribaAppRApplicationEvent -AppId $firstAppId
         $count = if ($events.listOfEvents) { $events.listOfEvents.Count } else { 0 }
         Write-Host "  Found $count events"
     }
 
-    Test-Cmdlet "Get-JuribaAppRApplicationPackage -ApplicationId $firstAppId" {
-        $pkgs = Get-JuribaAppRApplicationPackage -ApplicationId $firstAppId
+    Test-Cmdlet "Get-JuribaAppRApplicationPackage -AppId $firstAppId" {
+        $pkgs = Get-JuribaAppRApplicationPackage -AppId $firstAppId
         $count = if ($pkgs.versions) { $pkgs.versions.Count } else { 0 }
         Write-Host "  Found $count package versions"
     }
@@ -122,8 +122,8 @@ if ($firstAppId) {
         Write-Host "  Package: $($detail.applicationName) type=$($detail.applicationPackageType)"
     }
 
-    Test-Cmdlet "Get-JuribaAppRApplicationStatus -ApplicationId $firstAppId" {
-        $tracker = Get-JuribaAppRApplicationStatus -ApplicationId $firstAppId
+    Test-Cmdlet "Get-JuribaAppRApplicationStatus -AppId $firstAppId" {
+        $tracker = Get-JuribaAppRApplicationStatus -AppId $firstAppId
         Write-Host "  Status: $($tracker.status), Progress: $($tracker.currentProgressPercent)%"
     }
 }

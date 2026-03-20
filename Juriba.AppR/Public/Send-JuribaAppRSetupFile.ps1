@@ -95,13 +95,19 @@ function Send-JuribaAppRSetupFile {
                 $chunkUri = "{0}/{1}" -f $conn.Instance, $chunkEndpoint
 
                 # Use Invoke-WebRequest with form for multipart upload
+                # Field names must match Dropzone.js 5.9.3 chunked upload params exactly
+                $chunkByteOffset = $chunkIndex * $chunkSize
                 $form = @{
-                    dzUuid      = $uuid
-                    dzChunkIndex = $chunkIndex.ToString()
-                    dzTotalChunks = $totalChunks.ToString()
-                    dzTotalFileSize = $fileSize.ToString()
-                    dzFilename  = $fileName
-                    file        = Get-Item $chunkTempPath
+                    dzUuid             = $uuid
+                    dzChunkIndex       = $chunkIndex.ToString()
+                    dzTotalFileSize    = $fileSize.ToString()
+                    dzCurrentChunkSize = $bytesRead.ToString()
+                    dzTotalChunkCount  = $totalChunks.ToString()
+                    dzChunkByteOffset  = $chunkByteOffset.ToString()
+                    dzChunkSize        = $chunkSize.ToString()
+                    dzFilename         = $fileName
+                    userId             = "1"
+                    file               = Get-Item $chunkTempPath
                 }
 
                 $percentComplete = [Math]::Round(($chunkIndex + 1) / $totalChunks * 100)
@@ -150,12 +156,14 @@ function Send-JuribaAppRSetupFile {
     Write-Progress -Activity "Uploading $fileName" -Completed
 
     # Combine the chunks on the server
+    # Field names must match the CombineFilesModel expected by the API
     Write-Verbose "Combining chunks on server..."
     $combineBody = @{
-        uuid         = $uuid
-        fileName     = $fileName
-        totalChunks  = $totalChunks
+        dzIdentifier  = $uuid
+        fileName      = $fileName
+        totalChunks   = $totalChunks
         expectedBytes = $fileSize
+        uploadType    = 0
     }
 
     $combineUri = "{0}/{1}" -f $conn.Instance, $combineEndpoint
