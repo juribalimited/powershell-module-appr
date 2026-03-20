@@ -33,24 +33,29 @@ function Connect-JuribaAppR {
     $Instance = $Instance.TrimEnd('/')
 
     # Validate connection by calling the whoami endpoint (reliable with API key auth)
+    # Use Invoke-WebRequest with -SessionVariable to capture session cookies.
+    # Some endpoints (e.g. uploadChunk) require cookie auth even when x-api-key
+    # was used for the initial request, so we preserve the session for later use.
     try {
         $headers = @{
             "x-api-key" = $APIKey
             "Accept"    = "application/json"
         }
-        $whoami = Invoke-RestMethod -Uri "$Instance/api/user/whoami" -Headers $headers -Method GET
+        $response = Invoke-WebRequest -Uri "$Instance/api/user/whoami" -Headers $headers `
+            -Method GET -SessionVariable 'appRSession'
         Write-Verbose "Successfully connected to $Instance"
     }
     catch {
         throw "Failed to connect to '$Instance'. Please verify the instance URL and API key. Error: $($_.Exception.Message)"
     }
 
-    # Store connection securely
+    # Store connection securely — include the WebSession for cookie-based endpoints
     $secureAPIKey = $APIKey | ConvertTo-SecureString -AsPlainText -Force
 
     $global:appRConnection = @{
         Instance     = $Instance
         SecureAPIKey = $secureAPIKey
+        WebSession   = $appRSession
         ConnectedAt  = Get-Date
     }
 

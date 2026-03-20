@@ -122,8 +122,18 @@ function Send-JuribaAppRSetupFile {
                 Write-Verbose "Uploading chunk $($chunkIndex + 1)/$totalChunks ($bytesRead bytes)"
 
                 try {
-                    $null = Invoke-WebRequest -Uri $chunkUri -Method POST `
-                        -Headers $headers -Form $form
+                    $uploadSplat = @{
+                        Uri     = $chunkUri
+                        Method  = 'POST'
+                        Headers = $headers
+                        Form    = $form
+                    }
+                    # Use WebSession (cookie auth) when available — some servers
+                    # reject x-api-key on the uploadChunk endpoint.
+                    if ($conn.WebSession) {
+                        $uploadSplat['WebSession'] = $conn.WebSession
+                    }
+                    $null = Invoke-WebRequest @uploadSplat
                 }
                 catch {
                     $errDetail = $_.Exception.Message
@@ -180,9 +190,17 @@ function Send-JuribaAppRSetupFile {
     Write-Verbose "Combine body: $jsonBody"
 
     try {
-        $combineResult = Invoke-RestMethod -Uri $combineUri -Method PUT `
-            -Headers $headers -ContentType 'application/json' `
-            -Body $jsonBody
+        $combineSplat = @{
+            Uri         = $combineUri
+            Method      = 'PUT'
+            Headers     = $headers
+            ContentType = 'application/json'
+            Body        = $jsonBody
+        }
+        if ($conn.WebSession) {
+            $combineSplat['WebSession'] = $conn.WebSession
+        }
+        $combineResult = Invoke-RestMethod @combineSplat
     }
     catch {
         $errDetail = $_.Exception.Message
