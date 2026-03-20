@@ -190,15 +190,25 @@ if (-not $SkipUpload) {
             # Pass metadata extracted from the installer by Send-JuribaAppRSetupFile.
             # The server requires name, manufacturer (min 3 chars), and appVer.
             $splatCreate = @{
-                Uuid        = $upload.Uuid
-                FileName    = $upload.FileName
-                FileSize    = $upload.FileSize
-                TotalChunks = $upload.TotalChunks
-                Verbose     = $true
+                Uuid           = $upload.Uuid
+                FileName       = $upload.FileName
+                FileSize       = $upload.FileSize
+                TotalChunks    = $upload.TotalChunks
+                RunImmediately = $true
+                Verbose        = $true
             }
             if ($upload.ProductName)    { $splatCreate['Name']         = $upload.ProductName }
             if ($upload.CompanyName)    { $splatCreate['Manufacturer'] = $upload.CompanyName }
             if ($upload.ProductVersion) { $splatCreate['Version']      = $upload.ProductVersion }
+
+            # Auto-select the first active VM group (status=2) for packaging
+            $vmGroups = Get-JuribaAppRVMGroup
+            $activeVm = $vmGroups | Where-Object { $_.status -eq 2 } | Select-Object -First 1
+            if ($activeVm) {
+                $splatCreate['VMGroupId'] = $activeVm.id
+                Write-Host "  Using VM group: $($activeVm.name) (id=$($activeVm.id))"
+            }
+
             $c = New-JuribaAppRApplication @splatCreate
             Write-Host "  Creation response: $($c | ConvertTo-Json -Compress)"
             $c

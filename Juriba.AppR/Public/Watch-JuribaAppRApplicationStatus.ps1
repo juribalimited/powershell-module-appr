@@ -90,24 +90,53 @@ function Watch-JuribaAppRApplicationStatus {
 
         $currentStatus = $tracker | ConvertTo-Json -Compress -Depth 5
 
+        $statusText = $tracker.status
+        $progressPct = $tracker.currentProgressPercent
+
         # Only log when status changes (or first poll)
         if ($currentStatus -ne $previousStatus) {
             if (-not $Quiet) {
-                Write-Host "[$timestamp] Poll #$pollCount ($elapsed min): Status changed" -ForegroundColor Yellow
-                Write-Host ($tracker | ConvertTo-Json -Depth 3) -ForegroundColor Gray
+                Write-Host "[$timestamp] Poll #$pollCount ($elapsed min): $statusText ($progressPct%)" -ForegroundColor Yellow
             }
             $previousStatus = $currentStatus
         }
         else {
             if (-not $Quiet) {
-                Write-Host "[$timestamp] Poll #$pollCount ($elapsed min): No change" -ForegroundColor DarkGray
+                Write-Host "[$timestamp] Poll #$pollCount ($elapsed min): $statusText ($progressPct%) - No change" -ForegroundColor DarkGray
+            }
+        }
+
+        # Detect terminal states — packaging complete or failed
+        $terminalStates = @(
+            'ReadyForQualityReview'
+            'QualityReview'
+            'ReadyForUat'
+            'Uat'
+            'ReadyForPublishing'
+            'Published'
+            'Failed'
+            'Cancelled'
+        )
+        if ($statusText -and $terminalStates -contains $statusText) {
+            if (-not $Quiet) {
+                Write-Progress -Activity "Watching application $AppId" -Completed
+                $color = if ($statusText -match 'Fail|Cancel') { 'Red' } else { 'Green' }
+                Write-Host "[$timestamp] Workflow reached: $statusText ($progressPct%)" -ForegroundColor $color
+            }
+            return [PSCustomObject]@{
+                Status      = $statusText
+                AppId       = $AppId
+                Progress    = $progressPct
+                Elapsed     = "$elapsed minutes"
+                PollCount   = $pollCount
+                Tracker     = $tracker
             }
         }
 
         # Write progress
         if (-not $Quiet) {
             Write-Progress -Activity "Watching application $AppId" `
-                -Status "Poll #$pollCount - Elapsed: $elapsed min" `
+                -Status "Poll #$pollCount - $statusText ($progressPct%) - Elapsed: $elapsed min" `
                 -PercentComplete ([Math]::Min(($elapsed / $TimeoutMinutes) * 100, 99))
         }
 
@@ -118,15 +147,16 @@ function Watch-JuribaAppRApplicationStatus {
     if (-not $Quiet) {
         Write-Progress -Activity "Watching application $AppId" -Completed
         Write-Warning "Timeout reached after $TimeoutMinutes minutes ($pollCount polls)."
-        Write-Warning "Check manually: Get-JuribaAppRApplicationStatus -AppId $AppId"
+        Write-Warning "Last status: $($tracker.status) ($($tracker.currentProgressPercent)%)"
     }
 
     # Return the last known tracker state
     return [PSCustomObject]@{
-        Status    = 'Timeout'
-        AppId     = $AppId
-        Elapsed   = "$TimeoutMinutes minutes"
-        PollCount = $pollCount
-        LastTracker = $tracker
+        Status      = 'Timeout'
+        AppId       = $AppId
+        Progress    = $tracker.currentProgressPercent
+        Elapsed     = "$TimeoutMinutes minutes"
+        PollCount   = $pollCount
+        Tracker     = $tracker
     }
 }
