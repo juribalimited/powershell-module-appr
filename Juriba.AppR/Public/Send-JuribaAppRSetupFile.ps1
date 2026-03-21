@@ -111,6 +111,7 @@ function Send-JuribaAppRSetupFile {
                 try {
                     $httpClient = [System.Net.Http.HttpClient]::new()
                     $httpClient.DefaultRequestHeaders.Add("x-api-key", $conn.APIKey)
+                    $httpClient.DefaultRequestHeaders.Add("Authorization", "Bearer $($conn.APIKey)")
                     $httpClient.DefaultRequestHeaders.Add("Accept", "application/json")
 
                     $multipartContent = [System.Net.Http.MultipartFormDataContent]::new()
