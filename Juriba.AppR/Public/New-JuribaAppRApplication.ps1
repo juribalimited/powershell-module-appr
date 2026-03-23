@@ -41,8 +41,6 @@ function New-JuribaAppRApplication {
       .PARAMETER CommandLine
       Optional override install command line. If not specified, the command suggestion
       API is called to auto-detect the best install command.
-      .PARAMETER UninstallCommandLine
-      Optional uninstall command line override.
       .PARAMETER Manufacturer
       Optional manufacturer/vendor name override.
       .PARAMETER Version
@@ -108,9 +106,6 @@ function New-JuribaAppRApplication {
 
         [Parameter(Mandatory = $false)]
         [string]$CommandLine,
-
-        [Parameter(Mandatory = $false)]
-        [string]$UninstallCommandLine,
 
         [Parameter(Mandatory = $false)]
         [string]$Manufacturer,
@@ -210,20 +205,40 @@ function New-JuribaAppRApplication {
         }
     }
 
-    # Parse command suggestions — the API returns a commands array:
-    #   { commands: [ { command: "...", type: 1 (install) }, { command: "...", type: 2 (uninstall) } ] }
-    $suggestedInstallCmd   = $null
-    $suggestedUninstallCmd = $null
+    # Parse command suggestions — the API returns a commands array with source priority:
+    #   source 3 = Juriba KB, source 1 = programmatic, source 2 = AI
+    # Within each source, prefer: lastResult > 0 (previously successful), then highest
+    # successRate, then first in array (API returns best-ranked first).
+    $suggestedInstallCmd = $null
     if ($suggestedCmd) {
         $cmds = $null
         if ($suggestedCmd.PSObject.Properties['commands']) {
             $cmds = $suggestedCmd.commands
         }
         if ($cmds -and $cmds.Count -gt 0) {
-            $suggestedInstallCmd   = ($cmds | Where-Object { $_.type -eq 1 } | Select-Object -First 1).command
-            $suggestedUninstallCmd = ($cmds | Where-Object { $_.type -eq 2 } | Select-Object -First 1).command
-            Write-Verbose "Suggested install command:   $suggestedInstallCmd"
-            Write-Verbose "Suggested uninstall command: $suggestedUninstallCmd"
+            $installCmds = @($cmds | Where-Object { $_.type -eq 1 })
+            Write-Verbose "Install command candidates: $($installCmds.Count)"
+            foreach ($c in $installCmds) {
+                $srcLabel = switch ($c.source) { 3 { 'JuribaKB' } 1 { 'Programmatic' } 2 { 'AI' } default { "Unknown($($c.source))" } }
+                Write-Verbose "  [$srcLabel] $($c.command)  (success=$($c.successRate) failure=$($c.failureRate) lastResult=$($c.lastResult))"
+            }
+
+            # Source priority: Juriba KB (3), programmatic (1), AI (2)
+            foreach ($sourcePriority in @(3, 1, 2)) {
+                $candidates = @($installCmds | Where-Object { $_.source -eq $sourcePriority })
+                if ($candidates.Count -gt 0) {
+                    # Within a source: prefer last-used successful (lastResult > 0),
+                    # then highest successRate, then first (API's own ranking)
+                    $pick = $candidates |
+                        Sort-Object -Property @{ Expression = { if ($_.lastResult -gt 0) { 0 } else { 1 } } },
+                                              @{ Expression = { $_.successRate }; Descending = $true } |
+                        Select-Object -First 1
+                    $suggestedInstallCmd = $pick.command
+                    $srcLabel = switch ($sourcePriority) { 3 { 'JuribaKB' } 1 { 'Programmatic' } 2 { 'AI' } }
+                    Write-Verbose "Selected install command [$srcLabel]: $suggestedInstallCmd"
+                    break
+                }
+            }
         }
         else {
             Write-Verbose "Command suggestion response had no commands array"
@@ -231,13 +246,10 @@ function New-JuribaAppRApplication {
     }
 
     # Resolve install command: explicit param > suggestion API > empty
+    # Uninstall is intentionally left blank — the product handles it during packaging
     $installCmd = if ($CommandLine) { $CommandLine }
                   elseif ($suggestedInstallCmd) { $suggestedInstallCmd }
                   else { "" }
-
-    $uninstallCmd = if ($UninstallCommandLine) { $UninstallCommandLine }
-                    elseif ($suggestedUninstallCmd) { $suggestedUninstallCmd }
-                    else { $null }
 
     # ── Step 4: Build the request body ──
 
@@ -260,12 +272,9 @@ function New-JuribaAppRApplication {
         isAutomatedRepackaging = $false
     }
 
-    # Add command lines if we have them
+    # Add install command line if we have one (uninstall left blank intentionally)
     if ($installCmd) {
         $applicationInfo['cmdLine'] = $installCmd
-    }
-    if ($uninstallCmd) {
-        $applicationInfo['uninstall'] = $uninstallCmd
     }
 
     # uploadChunkModel — tells the server which uploaded chunks to use
