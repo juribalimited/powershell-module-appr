@@ -8,9 +8,11 @@ function New-JuribaAppRApplication {
       Get-JuribaAppRApplicationCreationState or Watch-JuribaAppRApplicationCreation
       to monitor progress.
 
-      Follows the "path of least information" principle — only the upload UUID and
-      file name are required. Everything else uses sensible defaults but can be
-      overridden when needed.
+      This cmdlet mirrors the exact behavior of the App Readiness UI:
+        - Reads Default Settings for VM groups and output format bitmask
+        - Calls the server-side metadata extraction API for name/manufacturer/version
+        - Calls the command suggestion API for install/uninstall command lines
+        - Submits the create payload matching the UI's AddApplicationParentViewModel
 
       Typical workflow:
         1. Send-JuribaAppRSetupFile to upload the installer
@@ -30,11 +32,11 @@ function New-JuribaAppRApplication {
       .PARAMETER TotalChunks
       The number of chunks the file was split into during upload. Returned by Send-JuribaAppRSetupFile.
       .PARAMETER Name
-      Optional override name for the application. If not specified, the name is
-      derived from the uploaded setup file.
+      Optional override name for the application. If not specified, the server-side
+      metadata extraction API is called, falling back to the file name.
       .PARAMETER CommandLine
-      Optional override install command line. If not specified, App Readiness will
-      suggest a command line based on the installer type.
+      Optional override install command line. If not specified, the command suggestion
+      API is called to auto-detect the best install command.
       .PARAMETER UninstallCommandLine
       Optional uninstall command line.
       .PARAMETER Manufacturer
@@ -45,23 +47,31 @@ function New-JuribaAppRApplication {
       When specified, immediately begins automated packaging after creation.
       This is the default behavior for most automation scenarios.
       .PARAMETER VMGroupId
-      Optional. The VM group to use for packaging. If not specified, uses the default.
+      Optional. The VM group to use for packaging. If not specified, reads from
+      the instance's Default Settings.
       .PARAMETER VMGroupForTestingId
-      Optional. The VM group to use for smoke testing after packaging.
+      Optional. The VM group to use for smoke testing. If not specified, reads from
+      the instance's Default Settings.
       .PARAMETER PrePackaged
       When specified, indicates the uploaded file is already in a final package
       format (e.g. an MSI or IntuneWin that does not need repackaging).
+      .PARAMETER SkipMetadataExtraction
+      When specified, skips the server-side metadata extraction API call.
+      Use this if you are providing Name, Manufacturer, and Version explicitly.
+      .PARAMETER SkipCommandSuggestion
+      When specified, skips the command suggestion API call.
+      Use this if you are providing CommandLine explicitly.
       .EXAMPLE
       $upload = Send-JuribaAppRSetupFile -FilePath "C:\Installers\Firefox-Setup.exe"
       New-JuribaAppRApplication -Uuid $upload.Uuid -FileName $upload.FileName `
-          -FileSize $upload.FileSize -TotalChunks $upload.TotalChunks
-      Uploads a file and creates an application with default settings.
+          -FileSize $upload.FileSize -TotalChunks $upload.TotalChunks -RunImmediately
+      Uploads a file and creates an application using default settings and auto-detection.
       .EXAMPLE
       $upload = Send-JuribaAppRSetupFile -FilePath "C:\Installers\App.exe"
       New-JuribaAppRApplication -Uuid $upload.Uuid -FileName $upload.FileName `
           -FileSize $upload.FileSize -TotalChunks $upload.TotalChunks `
           -Name "My App 2.0" -CommandLine "/S /v/qn" -RunImmediately
-      Creates an application with overrides and starts packaging immediately.
+      Creates an application with explicit overrides and starts packaging immediately.
       .EXAMPLE
       $upload = Send-JuribaAppRSetupFile -FilePath "C:\Packages\App.msi"
       $app = New-JuribaAppRApplication -Uuid $upload.Uuid -FileName $upload.FileName `
@@ -117,89 +127,163 @@ function New-JuribaAppRApplication {
         [switch]$PrePackaged,
 
         [Parameter(Mandatory = $false)]
-        [string]$OperatingSystemName,
+        [switch]$SkipMetadataExtraction,
 
         [Parameter(Mandatory = $false)]
-        [int]$OperatingSystemBuild,
-
-        [Parameter(Mandatory = $false)]
-        [int]$OperatingSystemType = 1,
-
-        [Parameter(Mandatory = $false)]
-        [string]$PackageVersion = "1.0",
-
-        [Parameter(Mandatory = $false)]
-        [string]$Site = "GLOBAL"
+        [switch]$SkipCommandSuggestion
     )
 
     $conn = Get-JuribaAppRConnection -Instance $Instance -APIKey $APIKey
 
-    # The server does NOT auto-detect name/version/manufacturer from the binary.
-    # We must always supply name, manufacturer (min 3 chars), and appVer.
-    # Use explicit parameter values first, then fall back to the file name.
-    # Callers should pass metadata extracted from Send-JuribaAppRSetupFile
-    # (ProductName, CompanyName, ProductVersion) via -Name, -Manufacturer, -Version.
-    $appName   = if ($Name)         { $Name }
-                 else { [System.IO.Path]::GetFileNameWithoutExtension($FileName) }
-    $appMfg    = if ($Manufacturer) { $Manufacturer }
-                 else { "Unknown" }
-    $appVer    = if ($Version)      { $Version }
-                 else { "1.0" }
+    # ── Step 1: Read Default Settings for VM groups and output format bitmask ──
+    # This matches the UI's GET /api/default-settings call before creating an app.
+    $defaults = $null
+    try {
+        $defaults = Get-JuribaAppRDefaultSettings -Instance $conn.Instance -APIKey $conn.APIKey
+        Write-Verbose "Default Settings: VMGroup=$($defaults.VMGroupForRepackaging), TestGroup=$($defaults.VMGroupForTesting), OutputBitmask=$($defaults.OutputFormatBitmask)"
+    }
+    catch {
+        Write-Warning "Could not read Default Settings: $($_.Exception.Message). Using fallback values."
+    }
 
-    # Build the applicationInfo sub-object
-    # Only include fields the server requires; let Default Settings handle
-    # VM groups, OS details, site, etc.
+    # Resolve VM groups: explicit parameter > default settings
+    $resolvedVMGroupId = if ($VMGroupId) { $VMGroupId }
+                         elseif ($defaults -and $defaults.VMGroupForRepackaging) { $defaults.VMGroupForRepackaging }
+                         else { 0 }
+
+    $resolvedVMGroupForTestingId = if ($VMGroupForTestingId) { $VMGroupForTestingId }
+                                   elseif ($defaults -and $defaults.VMGroupForTesting) { $defaults.VMGroupForTesting }
+                                   else { 0 }
+
+    # Resolve output format bitmask from default settings
+    $outputBitmask = if ($defaults -and $defaults.OutputFormatBitmask) { $defaults.OutputFormatBitmask }
+                     else { 0 }
+
+    # ── Step 2: Server-side metadata extraction ──
+    # Matches the UI's PUT /api/apm/application/setupFile/getMetadata/{uuid}
+    $serverMeta = $null
+    if (-not $SkipMetadataExtraction -and (-not $Name -or -not $Manufacturer -or -not $Version)) {
+        try {
+            Write-Verbose "Extracting metadata from server for upload $Uuid..."
+            $serverMeta = Invoke-JuribaAppRRestMethod -Instance $conn.Instance -APIKey $conn.APIKey `
+                -Uri "api/apm/application/setupFile/getMetadata/$Uuid" -Method PUT
+            Write-Verbose "Server metadata: Name=$($serverMeta.applicationName), Mfg=$($serverMeta.applicationManufacturer), Ver=$($serverMeta.applicationVersion)"
+        }
+        catch {
+            Write-Warning "Server-side metadata extraction failed: $($_.Exception.Message)"
+        }
+    }
+
+    # Resolve name/manufacturer/version: explicit param > server metadata > fallback
+    $appName = if ($Name)         { $Name }
+               elseif ($serverMeta -and $serverMeta.applicationName) { $serverMeta.applicationName }
+               else { [System.IO.Path]::GetFileNameWithoutExtension($FileName) }
+
+    $appMfg  = if ($Manufacturer) { $Manufacturer }
+               elseif ($serverMeta -and $serverMeta.applicationManufacturer) { $serverMeta.applicationManufacturer }
+               else { "Unknown" }
+
+    $appVer  = if ($Version)      { $Version }
+               elseif ($serverMeta -and $serverMeta.applicationVersion) { $serverMeta.applicationVersion }
+               else { "1.0" }
+
+    # ── Step 3: Command suggestion API ──
+    # Matches the UI's POST /api/application/temp/commands/suggestion
+    $suggestedCmd = $null
+    if (-not $SkipCommandSuggestion -and -not $CommandLine) {
+        try {
+            Write-Verbose "Getting command suggestions for $FileName..."
+            $suggestedCmd = Get-JuribaAppRCommandSuggestion `
+                -Instance $conn.Instance -APIKey $conn.APIKey `
+                -UploadId $Uuid -FileName $FileName `
+                -Name $appName -Manufacturer $appMfg -Version $appVer
+            if ($suggestedCmd) {
+                Write-Verbose "Suggested command: $($suggestedCmd | ConvertTo-Json -Compress)"
+            }
+        }
+        catch {
+            Write-Warning "Command suggestion failed: $($_.Exception.Message)"
+        }
+    }
+
+    # Resolve install command: explicit param > suggestion API > empty
+    $installCmd = if ($CommandLine) { $CommandLine }
+                  elseif ($suggestedCmd -and $suggestedCmd.cmdLine) { $suggestedCmd.cmdLine }
+                  elseif ($suggestedCmd -and $suggestedCmd.installCommand) { $suggestedCmd.installCommand }
+                  else { "" }
+
+    $uninstallCmd = if ($UninstallCommandLine) { $UninstallCommandLine }
+                    elseif ($suggestedCmd -and $suggestedCmd.uninstall) { $suggestedCmd.uninstall }
+                    elseif ($suggestedCmd -and $suggestedCmd.uninstallCommand) { $suggestedCmd.uninstallCommand }
+                    else { $null }
+
+    # ── Step 4: Build the request body (matches exact UI payload from HAR) ──
+
+    # applicationInfo — matches the UI's AddApplicationViewModel
     $applicationInfo = @{
-        sourceFileName = $FileName
-        name           = $appName
-        manufacturer   = $appMfg
-        appVer         = $appVer
-        source         = 2    # TypeOfSource: 2 = local file upload
-        actionType     = 1    # TypeOfAction: 1 = repackage
+        appVer                 = $appVer
+        manufacturer           = $appMfg
+        name                   = $appName
+        pkgVer                 = "1.0"
+        siteCode               = "GLOBAL"
+        isDiscovery            = $false
+        preReqIds              = @()
+        upgradeAppIds          = @()
+        existingAppId          = -1
+        fullPreReqInfo         = @()
+        source                 = 0          # UI sends 0 (not 2)
+        sourceFileName         = $FileName
+        sendUda                = $true
+        operatingSystemType    = 0          # UI sends 0 (not 1)
+        isAutomatedRepackaging = $false
     }
 
-    # Optional fields — only add when explicitly provided
-    if ($PackageVersion -and $PackageVersion -ne "1.0") { $applicationInfo['packageVersion'] = $PackageVersion }
-    if ($Site -and $Site -ne "GLOBAL")                  { $applicationInfo['site'] = $Site }
-    if ($OperatingSystemName)  { $applicationInfo['operatingSystemName']  = $OperatingSystemName }
-    if ($OperatingSystemBuild) { $applicationInfo['operatingSystemBuild'] = $OperatingSystemBuild }
-    if ($OperatingSystemType -ne 1) { $applicationInfo['operatingSystemType'] = $OperatingSystemType }
-    if ($CommandLine) { $applicationInfo['cmdLine'] = $CommandLine }
-    if ($UninstallCommandLine) { $applicationInfo['uninstall'] = $UninstallCommandLine }
+    # Add command line if we have one
+    if ($installCmd) {
+        $applicationInfo['cmdLine'] = $installCmd
+    }
+    if ($uninstallCmd) {
+        $applicationInfo['uninstall'] = $uninstallCmd
+    }
 
-    # Build the uploadChunkModel (tells the server which uploaded chunks to use)
+    # uploadChunkModel — tells the server which uploaded chunks to use
     $uploadChunkModel = @{
-        dzIdentifier = $Uuid
-        fileName     = $FileName
+        dzIdentifier  = $Uuid
+        fileName      = $FileName
         expectedBytes = $FileSize
-        totalChunks  = $TotalChunks
-        uploadType   = 0
+        totalChunks   = $TotalChunks
     }
 
-    # Build the packageTypeMatrixModel — required by the server to resolve the
-    # source-action mapping.  Values come from GET /api/packaging/upload/packageTypesMatrix.
-    # from=0 (TypeOfPackageAction: default), sourceAction=1 (matches applicationInfo.source),
-    # to=0 (OutputPackages: default/all).
+    # packageTypeMatrixModel — output format bitmask from default settings
+    # UI sends { from: 0, to: <bitmask> } with NO sourceAction field
     $packageTypeMatrixModel = @{
-        from         = 0
-        sourceAction = 1
-        to           = 0
+        from = 0
+        to   = $outputBitmask
     }
 
-    # Build the main request body (AddApplicationParentViewModel)
+    # Main request body (AddApplicationParentViewModel)
     $body = @{
-        uuid                   = $Uuid
+        applicationId          = -1
         applicationInfo        = $applicationInfo
+        preReqs                = @()
+        fullPreReqInfo         = @()
+        upgradeAppIds          = @()
+        setAsMainSource        = $true
         uploadChunkModel       = $uploadChunkModel
         packageTypeMatrixModel = $packageTypeMatrixModel
-        setAsMainSource        = $true
         runImmediately         = [bool]$RunImmediately
+        runEvAsAnotherUser     = $null
     }
 
-    if ($VMGroupId) { $body['vmGroupId'] = $VMGroupId }
-    if ($VMGroupForTestingId) { $body['vmGroupForTestingId'] = $VMGroupForTestingId }
+    # VM groups from default settings or explicit parameters
+    if ($resolvedVMGroupId -gt 0) {
+        $body['vmGroupId'] = $resolvedVMGroupId
+    }
+    if ($resolvedVMGroupForTestingId -gt 0) {
+        $body['vmGroupForTestingId'] = $resolvedVMGroupForTestingId
+    }
 
-    $Target = if ($Name) { $Name } else { $FileName }
+    $Target = if ($appName -ne [System.IO.Path]::GetFileNameWithoutExtension($FileName)) { $appName } else { $FileName }
 
     if ($PSCmdlet.ShouldProcess($Target, "Create Application")) {
         if ($PrePackaged) {
@@ -208,6 +292,9 @@ function New-JuribaAppRApplication {
         else {
             $uri = "api/apm/application/async"
         }
+
+        Write-Verbose "Submitting create request to $uri..."
+        Write-Verbose "Body: $($body | ConvertTo-Json -Depth 5 -Compress)"
 
         $result = Invoke-JuribaAppRRestMethod -Instance $conn.Instance -APIKey $conn.APIKey `
             -Uri $uri -Method POST -Body $body

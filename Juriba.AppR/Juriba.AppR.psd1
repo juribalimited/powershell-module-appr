@@ -56,6 +56,10 @@
         # Query - Quality Review
         "Get-JuribaAppRQualityReview",
 
+        # Settings
+        "Get-JuribaAppRDefaultSettings",
+        "Get-JuribaAppRCommandSuggestion",
+
         # Upload / Create / Monitor Applications
         "Send-JuribaAppRSetupFile",
         "New-JuribaAppRApplication",
