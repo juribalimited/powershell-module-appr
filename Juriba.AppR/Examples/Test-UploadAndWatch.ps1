@@ -70,15 +70,29 @@ if ($upload.ProductName)    { $splatCreate['Name']         = $upload.ProductName
 if ($upload.CompanyName)    { $splatCreate['Manufacturer'] = $upload.CompanyName }
 if ($upload.ProductVersion) { $splatCreate['Version']      = $upload.ProductVersion }
 
-# Auto-select active VM group
+# Auto-select the best VM group for repackaging:
+# 1. Prefer isDefaultForRepackaging
+# 2. Fall back to any group with machines
 $vmGroups = Get-JuribaAppRVMGroup
-$activeVm = $vmGroups | Where-Object { $_.status -eq 2 } | Select-Object -First 1
-if ($activeVm) {
-    $splatCreate['VMGroupId'] = $activeVm.id
-    Write-Host "Using VM group: $($activeVm.name) (id=$($activeVm.id))"
+$repackVm = $vmGroups | Where-Object { $_.isDefaultForRepackaging -eq $true } | Select-Object -First 1
+if (-not $repackVm) {
+    $repackVm = $vmGroups | Where-Object { $_.machines.Count -gt 0 } | Select-Object -First 1
+}
+if ($repackVm) {
+    $splatCreate['VMGroupId'] = $repackVm.id
+    Write-Host "Using VM group: $($repackVm.name) (id=$($repackVm.id), machines=$($repackVm.machines.Count))"
+
+    # Extract OS info from the first machine in the group
+    $firstMachine = $repackVm.machines | Select-Object -First 1
+    if ($firstMachine) {
+        $splatCreate['OperatingSystemName']  = $firstMachine.operatingSystemName
+        $splatCreate['OperatingSystemBuild'] = $firstMachine.operatingSystemBuild
+        $splatCreate['OperatingSystemType']  = $firstMachine.operatingSystemType
+        Write-Host "  OS: $($firstMachine.operatingSystemName) (build $($firstMachine.operatingSystemBuild))"
+    }
 }
 else {
-    Write-Warning "No active VM group found (status=2). Packaging may not start."
+    Write-Warning "No VM group with machines found. Packaging may not start."
 }
 
 $app = New-JuribaAppRApplication @splatCreate -Verbose

@@ -114,7 +114,22 @@ function New-JuribaAppRApplication {
         [int]$VMGroupForTestingId,
 
         [Parameter(Mandatory = $false)]
-        [switch]$PrePackaged
+        [switch]$PrePackaged,
+
+        [Parameter(Mandatory = $false)]
+        [string]$OperatingSystemName,
+
+        [Parameter(Mandatory = $false)]
+        [int]$OperatingSystemBuild,
+
+        [Parameter(Mandatory = $false)]
+        [int]$OperatingSystemType = 1,
+
+        [Parameter(Mandatory = $false)]
+        [string]$PackageVersion = "1.0",
+
+        [Parameter(Mandatory = $false)]
+        [string]$Site = "GLOBAL"
     )
 
     $conn = Get-JuribaAppRConnection -Instance $Instance -APIKey $APIKey
@@ -133,14 +148,19 @@ function New-JuribaAppRApplication {
 
     # Build the applicationInfo sub-object
     $applicationInfo = @{
-        sourceFileName = $FileName
-        name           = $appName
-        manufacturer   = $appMfg
-        appVer         = $appVer
-        source         = 2    # TypeOfSource: 2 = local file upload
-        actionType     = 1    # TypeOfAction: 1 = repackage
+        sourceFileName      = $FileName
+        name                = $appName
+        manufacturer        = $appMfg
+        appVer              = $appVer
+        packageVersion      = $PackageVersion
+        site                = $Site
+        source              = 2    # TypeOfSource: 2 = local file upload
+        actionType          = 1    # TypeOfAction: 1 = repackage
+        operatingSystemType = $OperatingSystemType
     }
 
+    if ($OperatingSystemName)  { $applicationInfo['operatingSystemName']  = $OperatingSystemName }
+    if ($OperatingSystemBuild) { $applicationInfo['operatingSystemBuild'] = $OperatingSystemBuild }
     if ($CommandLine) { $applicationInfo['cmdLine'] = $CommandLine }
     if ($UninstallCommandLine) { $applicationInfo['uninstall'] = $UninstallCommandLine }
 
