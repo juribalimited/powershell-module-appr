@@ -70,9 +70,22 @@ if ($upload.ProductName)    { $splatCreate['Name']         = $upload.ProductName
 if ($upload.CompanyName)    { $splatCreate['Manufacturer'] = $upload.CompanyName }
 if ($upload.ProductVersion) { $splatCreate['Version']      = $upload.ProductVersion }
 
-# Don't send vmGroupId — the server uses Default Settings to pick the
-# correct VM group for repackaging/testing/UAT automatically.
-Write-Host "Using server default VM group settings for repackaging"
+# Select the default repackaging VM group — the server requires vmGroupId
+# to allocate a real VM. Without it, only a "Temporary machine" is assigned
+# and no VM spins up.
+$vmGroups = Get-JuribaAppRVMGroup
+$repackVm = $vmGroups | Where-Object { $_.isDefaultForRepackaging -eq $true } | Select-Object -First 1
+if (-not $repackVm) {
+    # Fall back to any group with machines
+    $repackVm = $vmGroups | Where-Object { $_.machines.Count -gt 0 } | Select-Object -First 1
+}
+if ($repackVm) {
+    $splatCreate['VMGroupId'] = $repackVm.id
+    Write-Host "Using VM group: $($repackVm.name) (id=$($repackVm.id))"
+}
+else {
+    Write-Warning "No VM group with machines found. Packaging may not start."
+}
 
 $app = New-JuribaAppRApplication @splatCreate -Verbose
 Write-Host "Application created. Response:"
