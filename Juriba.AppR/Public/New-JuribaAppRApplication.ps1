@@ -206,15 +206,25 @@ function New-JuribaAppRApplication {
         }
     }
 
+    # Parse command suggestions — the API returns a commands array:
+    #   { commands: [ { command: "...", type: 1 (install) }, { command: "...", type: 2 (uninstall) } ] }
+    # Pick the first install (type=1) and first uninstall (type=2) commands.
+    $suggestedInstallCmd   = $null
+    $suggestedUninstallCmd = $null
+    if ($suggestedCmd -and $suggestedCmd.commands) {
+        $suggestedInstallCmd   = ($suggestedCmd.commands | Where-Object { $_.type -eq 1 } | Select-Object -First 1).command
+        $suggestedUninstallCmd = ($suggestedCmd.commands | Where-Object { $_.type -eq 2 } | Select-Object -First 1).command
+        Write-Verbose "Suggested install command:   $suggestedInstallCmd"
+        Write-Verbose "Suggested uninstall command: $suggestedUninstallCmd"
+    }
+
     # Resolve install command: explicit param > suggestion API > empty
     $installCmd = if ($CommandLine) { $CommandLine }
-                  elseif ($suggestedCmd -and $suggestedCmd.cmdLine) { $suggestedCmd.cmdLine }
-                  elseif ($suggestedCmd -and $suggestedCmd.installCommand) { $suggestedCmd.installCommand }
+                  elseif ($suggestedInstallCmd) { $suggestedInstallCmd }
                   else { "" }
 
     $uninstallCmd = if ($UninstallCommandLine) { $UninstallCommandLine }
-                    elseif ($suggestedCmd -and $suggestedCmd.uninstall) { $suggestedCmd.uninstall }
-                    elseif ($suggestedCmd -and $suggestedCmd.uninstallCommand) { $suggestedCmd.uninstallCommand }
+                    elseif ($suggestedUninstallCmd) { $suggestedUninstallCmd }
                     else { $null }
 
     # ── Step 4: Build the request body (matches exact UI payload from HAR) ──

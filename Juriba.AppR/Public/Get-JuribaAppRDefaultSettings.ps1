@@ -55,13 +55,15 @@ function Get-JuribaAppRDefaultSettings {
     }
 
     foreach ($setting in $raw) {
-        switch ($setting.defaultSettingType) {
+        # Cast to [int] — JSON parser returns [long] but hashtable keys are [int]
+        $settingType = [int]$setting.defaultSettingType
+        switch ($settingType) {
             11 { $result.VMGroupForRepackaging = [int]$setting.value }
             12 { $result.VMGroupForTesting     = [int]$setting.value }
             13 { $result.VMGroupForUAT         = [int]$setting.value }
             default {
-                if ($formatBits.ContainsKey($setting.defaultSettingType)) {
-                    $fmt = $formatBits[$setting.defaultSettingType]
+                if ($formatBits.ContainsKey($settingType)) {
+                    $fmt = $formatBits[$settingType]
                     $enabled = $setting.value -eq 'true'
                     $result.OutputFormats[$fmt.Name] = $enabled
                     if ($enabled) {
