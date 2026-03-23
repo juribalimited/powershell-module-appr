@@ -147,20 +147,23 @@ function New-JuribaAppRApplication {
                  else { "1.0" }
 
     # Build the applicationInfo sub-object
+    # Only include fields the server requires; let Default Settings handle
+    # VM groups, OS details, site, etc.
     $applicationInfo = @{
-        sourceFileName      = $FileName
-        name                = $appName
-        manufacturer        = $appMfg
-        appVer              = $appVer
-        packageVersion      = $PackageVersion
-        site                = $Site
-        source              = 2    # TypeOfSource: 2 = local file upload
-        actionType          = 1    # TypeOfAction: 1 = repackage
-        operatingSystemType = $OperatingSystemType
+        sourceFileName = $FileName
+        name           = $appName
+        manufacturer   = $appMfg
+        appVer         = $appVer
+        source         = 2    # TypeOfSource: 2 = local file upload
+        actionType     = 1    # TypeOfAction: 1 = repackage
     }
 
+    # Optional fields — only add when explicitly provided
+    if ($PackageVersion -and $PackageVersion -ne "1.0") { $applicationInfo['packageVersion'] = $PackageVersion }
+    if ($Site -and $Site -ne "GLOBAL")                  { $applicationInfo['site'] = $Site }
     if ($OperatingSystemName)  { $applicationInfo['operatingSystemName']  = $OperatingSystemName }
     if ($OperatingSystemBuild) { $applicationInfo['operatingSystemBuild'] = $OperatingSystemBuild }
+    if ($OperatingSystemType -ne 1) { $applicationInfo['operatingSystemType'] = $OperatingSystemType }
     if ($CommandLine) { $applicationInfo['cmdLine'] = $CommandLine }
     if ($UninstallCommandLine) { $applicationInfo['uninstall'] = $UninstallCommandLine }
 

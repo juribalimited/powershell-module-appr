@@ -75,23 +75,23 @@ function Watch-JuribaAppRApplicationStatus {
         $elapsed = [Math]::Round(((Get-Date) - $startTime).TotalMinutes, 1)
         $timestamp = (Get-Date).ToString('HH:mm:ss')
 
-        # Get the full tracker
+        # Get app detail — the ext.status field is the authoritative packaging status.
+        # The tracker/full endpoint shows "None" even after failures.
         try {
-            $tracker = Invoke-JuribaAppRRestMethod -Instance $conn.Instance -APIKey $conn.APIKey `
-                -Uri "api/apm/application/$AppId/tracker/full" -Method GET
+            $appDetail = Invoke-JuribaAppRRestMethod -Instance $conn.Instance -APIKey $conn.APIKey `
+                -Uri "api/apm/application/$AppId" -Method GET
         }
         catch {
             if (-not $Quiet) {
-                Write-Warning "[$timestamp] Poll #${pollCount}: Failed to get tracker - $($_.Exception.Message)"
+                Write-Warning "[$timestamp] Poll #${pollCount}: Failed to get app detail - $($_.Exception.Message)"
             }
             Start-Sleep -Seconds $IntervalSeconds
             continue
         }
 
-        $currentStatus = $tracker | ConvertTo-Json -Compress -Depth 5
-
-        $statusText = $tracker.status
-        $progressPct = $tracker.currentProgressPercent
+        $statusText = $appDetail.ext.status
+        $progressPct = $appDetail.ext.progressPercent
+        $currentStatus = "$statusText|$progressPct"
 
         # Only log when status changes (or first poll)
         if ($currentStatus -ne $previousStatus) {
@@ -115,6 +115,8 @@ function Watch-JuribaAppRApplicationStatus {
             'ReadyForPublishing'
             'Published'
             'Failed'
+            'FailedPackaging'
+            'FailedToPackage'
             'Cancelled'
         )
         if ($statusText -and $terminalStates -contains $statusText) {
@@ -129,7 +131,7 @@ function Watch-JuribaAppRApplicationStatus {
                 Progress    = $progressPct
                 Elapsed     = "$elapsed minutes"
                 PollCount   = $pollCount
-                Tracker     = $tracker
+                AppDetail   = $appDetail
             }
         }
 
@@ -147,16 +149,16 @@ function Watch-JuribaAppRApplicationStatus {
     if (-not $Quiet) {
         Write-Progress -Activity "Watching application $AppId" -Completed
         Write-Warning "Timeout reached after $TimeoutMinutes minutes ($pollCount polls)."
-        Write-Warning "Last status: $($tracker.status) ($($tracker.currentProgressPercent)%)"
+        Write-Warning "Last status: $statusText ($progressPct%)"
     }
 
-    # Return the last known tracker state
+    # Return the last known state
     return [PSCustomObject]@{
         Status      = 'Timeout'
         AppId       = $AppId
-        Progress    = $tracker.currentProgressPercent
+        Progress    = $progressPct
         Elapsed     = "$TimeoutMinutes minutes"
         PollCount   = $pollCount
-        Tracker     = $tracker
+        AppDetail   = $appDetail
     }
 }
