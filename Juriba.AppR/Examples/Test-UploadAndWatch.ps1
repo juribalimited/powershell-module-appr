@@ -94,8 +94,12 @@ $creationTimeout = (Get-Date).AddMinutes(5)
 while ((Get-Date) -lt $creationTimeout) {
     try {
         $state = Get-JuribaAppRApplicationCreationState -UploadId $upload.Uuid
-        if ($state.applicationId -and $state.applicationId -gt 0) {
-            $appId = $state.applicationId
+        # applicationId is nested inside .data
+        $resolvedId = if ($state.data.applicationId) { $state.data.applicationId }
+                      elseif ($state.applicationId)   { $state.applicationId }
+                      else { $null }
+        if ($resolvedId -and $resolvedId -gt 0) {
+            $appId = $resolvedId
             Write-Host "Application ID resolved: $appId" -ForegroundColor Green
             break
         }
