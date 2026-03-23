@@ -66,8 +66,8 @@ Write-Host "  Version:      $($upload.ProductVersion)"
 # New-JuribaAppRApplication now automatically:
 #   - Reads Default Settings (VM groups, output format bitmask)
 #   - Extracts metadata from the server (name, manufacturer, version)
-#   - Gets command suggestions (install/uninstall command lines)
-#   - Builds the exact payload the UI sends
+#   - Command lines are NOT sent — the product determines them server-side
+#     using hash matching, Juriba KB, and AI-based detection
 Write-Host "`n=== Step 3: Create Application ===" -ForegroundColor Magenta
 
 $splatCreate = @{
