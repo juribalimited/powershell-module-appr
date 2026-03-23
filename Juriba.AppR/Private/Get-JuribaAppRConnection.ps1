@@ -43,7 +43,6 @@ function Get-JuribaAppRConnection {
         return @{
             Instance   = $resolvedInstance
             APIKey     = $resolvedAPIKey
-            WebSession = $global:appRConnection.WebSession
         }
     }
 

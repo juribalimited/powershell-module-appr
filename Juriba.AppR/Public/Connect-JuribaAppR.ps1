@@ -32,17 +32,15 @@ function Connect-JuribaAppR {
 
     $Instance = $Instance.TrimEnd('/')
 
-    # Validate connection by calling the whoami endpoint (reliable with API key auth)
-    # Use Invoke-WebRequest with -SessionVariable to capture session cookies.
-    # Some endpoints (e.g. uploadChunk) require cookie auth even when x-api-key
-    # was used for the initial request, so we preserve the session for later use.
+    # Validate connection by calling packageTypesMatrix (supports x-api-key auth).
+    # Note: /api/user/whoami does NOT support API key auth and returns SPA HTML.
     try {
         $headers = @{
             "x-api-key" = $APIKey
             "Accept"    = "application/json"
         }
-        $response = Invoke-WebRequest -Uri "$Instance/api/user/whoami" -Headers $headers `
-            -Method GET -SessionVariable 'appRSession'
+        $response = Invoke-WebRequest -Uri "$Instance/api/packaging/upload/packageTypesMatrix" `
+            -Headers $headers -Method GET
 
         # Verify we got actual JSON back, not the SPA HTML fallback.
         # An invalid/expired API key returns 200 with the Angular index.html.
@@ -51,19 +49,18 @@ function Connect-JuribaAppR {
             throw "API key authentication failed — server returned HTML instead of JSON. The API key may be invalid or expired."
         }
 
-        Write-Verbose "Successfully connected to $Instance"
+        Write-Verbose "Successfully connected to $Instance (validated via packageTypesMatrix)"
     }
     catch {
         throw "Failed to connect to '$Instance'. Please verify the instance URL and API key. Error: $($_.Exception.Message)"
     }
 
-    # Store connection securely — include the WebSession for cookie-based endpoints
+    # Store connection securely
     $secureAPIKey = $APIKey | ConvertTo-SecureString -AsPlainText -Force
 
     $global:appRConnection = @{
         Instance     = $Instance
         SecureAPIKey = $secureAPIKey
-        WebSession   = $appRSession
         ConnectedAt  = Get-Date
     }
 

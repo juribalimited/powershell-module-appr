@@ -188,17 +188,8 @@ function Send-JuribaAppRSetupFile {
     Write-Verbose "Combine body: $jsonBody"
 
     try {
-        $combineSplat = @{
-            Uri         = $combineUri
-            Method      = 'PUT'
-            Headers     = $headers
-            ContentType = 'application/json'
-            Body        = $jsonBody
-        }
-        if ($conn.WebSession) {
-            $combineSplat['WebSession'] = $conn.WebSession
-        }
-        $combineResult = Invoke-RestMethod @combineSplat
+        $combineResult = Invoke-RestMethod -Uri $combineUri -Method PUT `
+            -Headers $headers -ContentType 'application/json' -Body $jsonBody
     }
     catch {
         $errDetail = $_.Exception.Message
