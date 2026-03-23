@@ -211,11 +211,21 @@ function New-JuribaAppRApplication {
     # Pick the first install (type=1) and first uninstall (type=2) commands.
     $suggestedInstallCmd   = $null
     $suggestedUninstallCmd = $null
-    if ($suggestedCmd -and $suggestedCmd.commands) {
-        $suggestedInstallCmd   = ($suggestedCmd.commands | Where-Object { $_.type -eq 1 } | Select-Object -First 1).command
-        $suggestedUninstallCmd = ($suggestedCmd.commands | Where-Object { $_.type -eq 2 } | Select-Object -First 1).command
-        Write-Verbose "Suggested install command:   $suggestedInstallCmd"
-        Write-Verbose "Suggested uninstall command: $suggestedUninstallCmd"
+    if ($suggestedCmd) {
+        # Use PSObject.Properties to safely check for the commands array
+        $cmds = $null
+        if ($suggestedCmd.PSObject.Properties['commands']) {
+            $cmds = $suggestedCmd.commands
+        }
+        if ($cmds -and $cmds.Count -gt 0) {
+            $suggestedInstallCmd   = ($cmds | Where-Object { $_.type -eq 1 } | Select-Object -First 1).command
+            $suggestedUninstallCmd = ($cmds | Where-Object { $_.type -eq 2 } | Select-Object -First 1).command
+            Write-Verbose "Suggested install command:   $suggestedInstallCmd"
+            Write-Verbose "Suggested uninstall command: $suggestedUninstallCmd"
+        }
+        else {
+            Write-Verbose "Command suggestion response had no commands array"
+        }
     }
 
     # Resolve install command: explicit param > suggestion API > empty

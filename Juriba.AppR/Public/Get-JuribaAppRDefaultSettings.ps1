@@ -30,8 +30,14 @@ function Get-JuribaAppRDefaultSettings {
     $raw = Invoke-JuribaAppRRestMethod -Instance $conn.Instance -APIKey $conn.APIKey `
         -Uri "api/default-settings" -Method GET
 
+    # Dump all raw settings for diagnostics
+    Write-Verbose "Raw default settings ($($raw.Count) entries):"
+    foreach ($s in $raw) {
+        Write-Verbose "  id=$($s.defaultSettingId) type=$($s.defaultSettingType) value='$($s.value)'"
+    }
+
     # Parse into a friendly hashtable
-    # Known defaultSettingType mappings:
+    # Known defaultSettingType mappings (from demo HAR):
     #   1=MSI, 2=AppV, 3=MSIX, 4=MSIXAppAttach, 5=IntuneWin, 6=PSADT
     #   7=? (value=1), 8=? (value=true)
     #   11=vmGroupForRepackaging, 12=vmGroupForTesting, 13=vmGroupForUAT
@@ -66,12 +72,22 @@ function Get-JuribaAppRDefaultSettings {
                     $fmt = $formatBits[$settingType]
                     $enabled = $setting.value -eq 'true'
                     $result.OutputFormats[$fmt.Name] = $enabled
+                    Write-Verbose "  Format: $($fmt.Name) (type=$settingType, bit=$($fmt.Bit)) = $enabled"
                     if ($enabled) {
                         $result.OutputFormatBitmask = $result.OutputFormatBitmask -bor $fmt.Bit
                     }
                 }
+                else {
+                    Write-Verbose "  Unknown setting type $settingType = '$($setting.value)'"
+                }
             }
         }
+    }
+
+    Write-Verbose "Resolved: VMGroup=$($result.VMGroupForRepackaging), TestGroup=$($result.VMGroupForTesting), UAT=$($result.VMGroupForUAT), Bitmask=$($result.OutputFormatBitmask)"
+
+    if ($result.OutputFormatBitmask -eq 0) {
+        Write-Warning "No output formats are enabled in Default Settings. The packaging job may fail. Check Default Settings in the UI."
     }
 
     [PSCustomObject]$result
