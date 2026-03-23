@@ -15,9 +15,8 @@ function New-JuribaAppRApplication {
       It also calls the server-side metadata extraction API to detect the
       application name, manufacturer, and version from the uploaded binary.
 
-      The install/uninstall command lines are NOT sent in the create payload.
-      The product determines these server-side during the packaging process
-      using hash matching, knowledge base lookups, and AI-based detection.
+      It also calls the command suggestion API to detect the best install
+      and uninstall command lines for the uploaded binary.
 
       Typical workflow:
         1. Send-JuribaAppRSetupFile to upload the installer
@@ -39,6 +38,11 @@ function New-JuribaAppRApplication {
       .PARAMETER Name
       Optional override name for the application. If not specified, the server-side
       metadata extraction API is called, falling back to the file name.
+      .PARAMETER CommandLine
+      Optional override install command line. If not specified, the command suggestion
+      API is called to auto-detect the best install command.
+      .PARAMETER UninstallCommandLine
+      Optional uninstall command line override.
       .PARAMETER Manufacturer
       Optional manufacturer/vendor name override.
       .PARAMETER Version
@@ -58,6 +62,9 @@ function New-JuribaAppRApplication {
       .PARAMETER SkipMetadataExtraction
       When specified, skips the server-side metadata extraction API call.
       Use this if you are providing Name, Manufacturer, and Version explicitly.
+      .PARAMETER SkipCommandSuggestion
+      When specified, skips the command suggestion API call.
+      Use this if you are providing CommandLine explicitly.
       .EXAMPLE
       $upload = Send-JuribaAppRSetupFile -FilePath "C:\Installers\Firefox-Setup.exe"
       New-JuribaAppRApplication -Uuid $upload.Uuid -FileName $upload.FileName `
@@ -100,6 +107,12 @@ function New-JuribaAppRApplication {
         [string]$Name,
 
         [Parameter(Mandatory = $false)]
+        [string]$CommandLine,
+
+        [Parameter(Mandatory = $false)]
+        [string]$UninstallCommandLine,
+
+        [Parameter(Mandatory = $false)]
         [string]$Manufacturer,
 
         [Parameter(Mandatory = $false)]
@@ -118,7 +131,10 @@ function New-JuribaAppRApplication {
         [switch]$PrePackaged,
 
         [Parameter(Mandatory = $false)]
-        [switch]$SkipMetadataExtraction
+        [switch]$SkipMetadataExtraction,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$SkipCommandSuggestion
     )
 
     $conn = Get-JuribaAppRConnection -Instance $Instance -APIKey $APIKey
@@ -175,10 +191,55 @@ function New-JuribaAppRApplication {
                elseif ($serverMeta -and $serverMeta.applicationVersion) { $serverMeta.applicationVersion }
                else { "1.0" }
 
-    # ── Step 3: Build the request body ──
-    # Note: cmdLine and uninstall are NOT included in the create payload.
-    # The product determines command lines server-side during packaging using
-    # hash matching, Juriba KB lookups, and AI-based detection.
+    # ── Step 3: Command suggestion API ──
+    # Matches the UI's POST /api/application/temp/commands/suggestion
+    $suggestedCmd = $null
+    if (-not $SkipCommandSuggestion -and -not $CommandLine) {
+        try {
+            Write-Verbose "Getting command suggestions for $FileName..."
+            $suggestedCmd = Get-JuribaAppRCommandSuggestion `
+                -Instance $conn.Instance -APIKey $conn.APIKey `
+                -UploadId $Uuid -FileName $FileName `
+                -Name $appName -Manufacturer $appMfg -Version $appVer
+            if ($suggestedCmd) {
+                Write-Verbose "Suggested command: $($suggestedCmd | ConvertTo-Json -Compress)"
+            }
+        }
+        catch {
+            Write-Warning "Command suggestion failed: $($_.Exception.Message)"
+        }
+    }
+
+    # Parse command suggestions — the API returns a commands array:
+    #   { commands: [ { command: "...", type: 1 (install) }, { command: "...", type: 2 (uninstall) } ] }
+    $suggestedInstallCmd   = $null
+    $suggestedUninstallCmd = $null
+    if ($suggestedCmd) {
+        $cmds = $null
+        if ($suggestedCmd.PSObject.Properties['commands']) {
+            $cmds = $suggestedCmd.commands
+        }
+        if ($cmds -and $cmds.Count -gt 0) {
+            $suggestedInstallCmd   = ($cmds | Where-Object { $_.type -eq 1 } | Select-Object -First 1).command
+            $suggestedUninstallCmd = ($cmds | Where-Object { $_.type -eq 2 } | Select-Object -First 1).command
+            Write-Verbose "Suggested install command:   $suggestedInstallCmd"
+            Write-Verbose "Suggested uninstall command: $suggestedUninstallCmd"
+        }
+        else {
+            Write-Verbose "Command suggestion response had no commands array"
+        }
+    }
+
+    # Resolve install command: explicit param > suggestion API > empty
+    $installCmd = if ($CommandLine) { $CommandLine }
+                  elseif ($suggestedInstallCmd) { $suggestedInstallCmd }
+                  else { "" }
+
+    $uninstallCmd = if ($UninstallCommandLine) { $UninstallCommandLine }
+                    elseif ($suggestedUninstallCmd) { $suggestedUninstallCmd }
+                    else { $null }
+
+    # ── Step 4: Build the request body ──
 
     # applicationInfo — matches the UI's AddApplicationViewModel
     $applicationInfo = @{
@@ -197,6 +258,14 @@ function New-JuribaAppRApplication {
         sendUda                = $true
         operatingSystemType    = 0
         isAutomatedRepackaging = $false
+    }
+
+    # Add command lines if we have them
+    if ($installCmd) {
+        $applicationInfo['cmdLine'] = $installCmd
+    }
+    if ($uninstallCmd) {
+        $applicationInfo['uninstall'] = $uninstallCmd
     }
 
     # uploadChunkModel — tells the server which uploaded chunks to use

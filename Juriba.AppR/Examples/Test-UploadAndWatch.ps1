@@ -139,5 +139,45 @@ Write-Host "Progress: $($result.Progress)%"
 Write-Host "Elapsed:  $($result.Elapsed)"
 Write-Host "Polls:    $($result.PollCount)"
 
+# On failure, dump diagnostics to help debug
+if ($result.Status -match 'Fail|Cancel') {
+    Write-Host "`n=== Failure Diagnostics ===" -ForegroundColor Red
+
+    # Dump relevant fields from the app detail returned by Watch
+    if ($result.AppDetail) {
+        $ext = $result.AppDetail.ext
+        if ($ext) {
+            Write-Host "  ext.status:          $($ext.status)"
+            Write-Host "  ext.progressPercent: $($ext.progressPercent)"
+            Write-Host "  ext.statusMessage:   $($ext.statusMessage)"
+            Write-Host "  ext.errorMessage:    $($ext.errorMessage)"
+        }
+        # Show packaging info if present
+        if ($result.AppDetail.packages) {
+            Write-Host "`n  Packages:" -ForegroundColor Yellow
+            $result.AppDetail.packages | ForEach-Object {
+                Write-Host "    Type=$($_.packageType) Status=$($_.status) Error=$($_.errorMessage)"
+            }
+        }
+        # Full ext dump for anything we missed
+        Write-Host "`n  Full ext object:" -ForegroundColor Yellow
+        $ext | ConvertTo-Json -Depth 3 | Write-Host
+    }
+
+    # Pull event history for the app
+    try {
+        Write-Host "`n  Event history:" -ForegroundColor Yellow
+        $events = Get-JuribaAppRApplicationEvent -AppId $appId
+        $events | ForEach-Object {
+            $ts = if ($_.date) { $_.date } elseif ($_.timestamp) { $_.timestamp } else { '' }
+            $msg = if ($_.message) { $_.message } elseif ($_.description) { $_.description } else { ($_ | ConvertTo-Json -Compress) }
+            Write-Host "    [$ts] $msg"
+        }
+    }
+    catch {
+        Write-Host "    Could not retrieve events: $($_.Exception.Message)" -ForegroundColor DarkGray
+    }
+}
+
 # Disconnect
 Disconnect-JuribaAppR
