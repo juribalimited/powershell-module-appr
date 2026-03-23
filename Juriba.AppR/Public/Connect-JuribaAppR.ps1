@@ -43,6 +43,14 @@ function Connect-JuribaAppR {
         }
         $response = Invoke-WebRequest -Uri "$Instance/api/user/whoami" -Headers $headers `
             -Method GET -SessionVariable 'appRSession'
+
+        # Verify we got actual JSON back, not the SPA HTML fallback.
+        # An invalid/expired API key returns 200 with the Angular index.html.
+        $contentType = $response.Headers['Content-Type']
+        if ($contentType -and $contentType -match 'text/html') {
+            throw "API key authentication failed — server returned HTML instead of JSON. The API key may be invalid or expired."
+        }
+
         Write-Verbose "Successfully connected to $Instance"
     }
     catch {
