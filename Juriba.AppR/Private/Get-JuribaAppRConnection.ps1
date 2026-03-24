@@ -33,7 +33,7 @@ function Get-JuribaAppRConnection {
             # Decrypt the SecureString back to plain text for API calls
             $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($global:appRConnection.SecureAPIKey)
             try {
-                [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
+                [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
             }
             finally {
                 [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)

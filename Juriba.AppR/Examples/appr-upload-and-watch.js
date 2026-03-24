@@ -299,6 +299,7 @@ async function uploadChunk({ uuid, fileName, fileSize, chunkSize, totalChunks, c
         form.append("dzChunkByteOffset",  String(chunkByteOffset));
         form.append("dzChunkSize",        String(CHUNK_SIZE_BYTES));
         form.append("dzFilename",         fileName);
+        form.append("userId",             "0");   // Required by server — actual user resolved from API key
         form.append("file",               fileBlob, fileName);
 
         const response = await fetch(url, {

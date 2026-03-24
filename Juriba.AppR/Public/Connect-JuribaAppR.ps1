@@ -99,7 +99,7 @@ function Connect-JuribaAppR {
         'SecureString' {
             $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureAPIKey)
             try {
-                $resolvedKey = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
+                $resolvedKey = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
             }
             finally {
                 [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
