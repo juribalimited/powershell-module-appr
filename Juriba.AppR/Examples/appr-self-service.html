@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>App Readiness — Self-Service Packaging</title>
+<style>
+  :root { --primary: #1a73e8; --success: #34a853; --error: #ea4335; --bg: #f8f9fa; --card: #fff; --border: #dadce0; --text: #202124; --muted: #5f6368; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; padding: 20px; }
+  h1 { font-size: 1.4em; margin-bottom: 4px; }
+  h2 { font-size: 1.1em; color: var(--muted); margin-bottom: 16px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 24px; max-width: 720px; margin: 0 auto 16px; }
+  .hidden { display: none !important; }
+  label { display: block; font-size: 0.85em; font-weight: 500; margin-bottom: 4px; color: var(--muted); }
+  input[type=text], input[type=password], input[type=file] { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.95em; margin-bottom: 12px; }
+  input[type=text]:focus, input[type=password]:focus { outline: none; border-color: var(--primary); }
+  button { padding: 8px 20px; border: none; border-radius: 4px; font-size: 0.9em; cursor: pointer; transition: background 0.2s; }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: #1557b0; }
+  .btn-primary:disabled { background: #94c2f8; cursor: not-allowed; }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn-outline:hover { background: #f1f3f4; }
+  .tabs { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 2px solid var(--border); }
+  .tab { padding: 8px 20px; cursor: pointer; font-size: 0.9em; border-bottom: 2px solid transparent; margin-bottom: -2px; color: var(--muted); }
+  .tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 500; }
+  .results { max-height: 260px; overflow-y: auto; margin-bottom: 12px; }
+  .result-item { padding: 10px 12px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 6px; cursor: pointer; transition: background 0.15s; }
+  .result-item:hover { background: #e8f0fe; }
+  .result-item.selected { background: #e8f0fe; border-color: var(--primary); }
+  .result-item .name { font-weight: 500; }
+  .result-item .vendor { font-size: 0.85em; color: var(--muted); }
+  select { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.95em; margin-bottom: 12px; }
+  .progress-bar { width: 100%; height: 8px; background: #e0e0e0; border-radius: 4px; margin-bottom: 12px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--primary); transition: width 0.3s; border-radius: 4px; }
+  .log { font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 0.8em; background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 4px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
+  .log .ok { color: #4ec9b0; }
+  .log .warn { color: #dcdcaa; }
+  .log .err { color: #f44747; }
+  .log .info { color: #9cdcfe; }
+  .result-success { text-align: center; padding: 24px; }
+  .result-success .app-id { font-size: 2em; font-weight: 700; color: var(--primary); }
+  .result-success a { color: var(--primary); text-decoration: none; }
+  .result-success a:hover { text-decoration: underline; }
+  .drop-zone { border: 2px dashed var(--border); border-radius: 8px; padding: 32px; text-align: center; color: var(--muted); margin-bottom: 12px; transition: border-color 0.2s; }
+  .drop-zone.dragover { border-color: var(--primary); background: #e8f0fe; }
+  .row { display: flex; gap: 12px; }
+  .row > * { flex: 1; }
+  .connected-badge { display: inline-block; padding: 2px 10px; background: #e6f4ea; color: var(--success); border-radius: 12px; font-size: 0.8em; font-weight: 500; }
+  .kb-download-hint { background: #fef7e0; border: 1px solid #f9e08e; border-radius: 4px; padding: 12px; margin-bottom: 12px; font-size: 0.85em; }
+  .kb-download-hint a { color: var(--primary); }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>App Readiness — Self-Service Packaging</h1>
+  <h2>Search the Knowledge Base or upload an installer to start automated packaging</h2>
+</div>
+
+<!-- Step 1: Connect -->
+<div class="card" id="step-connect">
+  <label>Instance URL</label>
+  <input type="text" id="instanceUrl" placeholder="https://demo.appr.juriba.app" value="https://demo.appr.juriba.app">
+  <label>API Key</label>
+  <input type="password" id="apiKey" placeholder="Your API key">
+  <button class="btn-primary" id="btnConnect">Connect</button>
+  <span id="connectStatus" style="margin-left:12px;font-size:0.85em"></span>
+</div>
+
+<!-- Step 2: Choose source -->
+<div class="card hidden" id="step-source">
+  <div style="margin-bottom:8px"><span class="connected-badge" id="connectedLabel"></span></div>
+  <div class="tabs">
+    <div class="tab active" data-tab="kb">Search Knowledge Base</div>
+    <div class="tab" data-tab="local">Upload Local File</div>
+  </div>
+
+  <!-- KB Search -->
+  <div id="tab-kb">
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input type="text" id="kbSearch" placeholder="Search by application name..." style="margin-bottom:0;flex:1">
+      <button class="btn-primary" id="btnSearch">Search</button>
+    </div>
+    <div class="results" id="kbResults"></div>
+  </div>
+
+  <!-- Local Upload -->
+  <div id="tab-local" class="hidden">
+    <div class="drop-zone" id="dropZone">
+      Drag & drop an installer here, or click to browse
+      <input type="file" id="fileInput" accept=".exe,.msi,.msix,.zip,.msp,.mst" style="display:none">
+    </div>
+    <div id="selectedFile" class="hidden" style="margin-bottom:12px;font-size:0.9em"></div>
+    <button class="btn-primary hidden" id="btnUploadLocal">Start Packaging</button>
+  </div>
+</div>
+
+<!-- Step 2b: KB Version Picker -->
+<div class="card hidden" id="step-kb-version">
+  <h2 id="kbAppName"></h2>
+  <div class="row">
+    <div><label>Version</label><select id="kbVersion"></select></div>
+    <div><label>File</label><select id="kbSource"></select></div>
+  </div>
+  <div class="kb-download-hint" id="kbDownloadHint"></div>
+  <label>Select the downloaded file</label>
+  <input type="file" id="kbFileInput" accept=".exe,.msi,.msix,.zip,.msp,.mst">
+  <button class="btn-primary" id="btnStartKB" disabled>Start Packaging</button>
+  <button class="btn-outline" id="btnBackToSearch" style="margin-left:8px">Back</button>
+</div>
+
+<!-- Step 3: Progress -->
+<div class="card hidden" id="step-progress">
+  <h2>Packaging in progress...</h2>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+  <div class="log" id="logArea"></div>
+</div>
+
+<!-- Step 4: Result -->
+<div class="card hidden" id="step-result">
+  <div class="result-success" id="resultContent"></div>
+  <div style="text-align:center;margin-top:16px">
+    <button class="btn-primary" id="btnNewApp">Package Another Application</button>
+  </div>
+</div>
+
+<script>
+// ─── State ──────────────────────────────────────────────────────────────────
+const state = {
+  instance: "", apiKey: "", userId: "0",
+  vmGroupId: 0, vmGroupForTestingId: 0, outputBitmask: 0,
+  kbApp: null, kbSources: [], kbMeta: null,
+};
+const CHUNK_SIZE = 2 * 1024 * 1024;
+
+// ─── DOM refs ───────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+
+// ─── Logging ────────────────────────────────────────────────────────────────
+function log(msg, cls = "") {
+  const el = $("logArea");
+  const span = document.createElement("span");
+  if (cls) span.className = cls;
+  span.textContent = msg + "\n";
+  el.appendChild(span);
+  el.scrollTop = el.scrollHeight;
+}
+function setProgress(pct) {
+  $("progressFill").style.width = Math.min(pct, 100) + "%";
+}
+
+// ─── API helper ─────────────────────────────────────────────────────────────
+async function api(method, endpoint, body = null) {
+  const url = state.instance.replace(/\/+$/, "") + "/" + endpoint.replace(/^\/+/, "");
+  const headers = { "x-api-key": state.apiKey, "Accept": "application/json" };
+  const opts = { method, headers };
+  if (body !== null) {
+    headers["Content-Type"] = "application/json";
+    opts.body = JSON.stringify(body);
+  } else if (method !== "GET") {
+    headers["Content-Type"] = "application/json";
+  }
+  const res = await fetch(url, opts);
+  const ct = res.headers.get("content-type") || "";
+  const text = await res.text();
+  if (ct.includes("text/html")) throw new Error("Auth failed — server returned HTML");
+  if (!res.ok) {
+    let detail = text;
+    try { detail = JSON.parse(text).detail || JSON.parse(text).message || text; } catch {}
+    throw new Error(`HTTP ${res.status}: ${detail}`);
+  }
+  if (!text.trim()) return null;
+  return JSON.parse(text);
+}
+
+// ─── Step 1: Connect ────────────────────────────────────────────────────────
+$("btnConnect").onclick = async () => {
+  const btn = $("btnConnect");
+  const status = $("connectStatus");
+  btn.disabled = true; status.textContent = "Connecting...";
+  try {
+    state.instance = $("instanceUrl").value.trim();
+    state.apiKey = $("apiKey").value.trim();
+    if (!state.instance || !state.apiKey) throw new Error("Enter instance URL and API key");
+
+    await api("GET", "api/packaging/upload/packageTypesMatrix");
+    state.userId = String(await api("GET", "api/apm/user/whoAmI"));
+
+    const raw = await api("GET", "api/default-settings");
+    const bits = { 1: 1, 2: 2, 3: 4, 4: 8, 5: 32, 6: 128 };
+    state.vmGroupId = 0; state.vmGroupForTestingId = 0; state.outputBitmask = 0;
+    for (const s of raw) {
+      if (s.defaultSettingType === 11) state.vmGroupId = parseInt(s.value);
+      else if (s.defaultSettingType === 12) state.vmGroupForTestingId = parseInt(s.value);
+      else if (bits[s.defaultSettingType] && s.value === "true") state.outputBitmask |= bits[s.defaultSettingType];
+    }
+
+    $("connectedLabel").textContent = "Connected to " + state.instance;
+    $("step-connect").classList.add("hidden");
+    $("step-source").classList.remove("hidden");
+    status.textContent = "";
+  } catch (e) {
+    status.textContent = "Error: " + e.message;
+    status.style.color = "var(--error)";
+  }
+  btn.disabled = false;
+};
+
+// ─── Tab switching ──────────────────────────────────────────────────────────
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.onclick = () => {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    tab.classList.add("active");
+    $("tab-kb").classList.toggle("hidden", tab.dataset.tab !== "kb");
+    $("tab-local").classList.toggle("hidden", tab.dataset.tab !== "local");
+  };
+});
+
+// ─── KB Search ──────────────────────────────────────────────────────────────
+$("btnSearch").onclick = async () => {
+  const term = $("kbSearch").value.trim();
+  if (!term) return;
+  $("btnSearch").disabled = true;
+  $("kbResults").innerHTML = "<div style='color:var(--muted);padding:12px'>Searching...</div>";
+  try {
+    const results = await api("GET", "api/kb/application?search=" + encodeURIComponent(term));
+    if (!results || results.length === 0) {
+      $("kbResults").innerHTML = "<div style='padding:12px;color:var(--muted)'>No results found. Try the Upload tab.</div>";
+      return;
+    }
+    $("kbResults").innerHTML = results.map((r, i) =>
+      `<div class="result-item" data-idx="${i}"><span class="name">${esc(r.applicationName)}</span><br><span class="vendor">${esc(r.vendorName)}</span></div>`
+    ).join("");
+    $("kbResults").querySelectorAll(".result-item").forEach(el => {
+      el.onclick = () => selectKBApp(results[parseInt(el.dataset.idx)]);
+    });
+  } catch (e) {
+    $("kbResults").innerHTML = `<div style="padding:12px;color:var(--error)">${esc(e.message)}</div>`;
+  }
+  $("btnSearch").disabled = false;
+};
+$("kbSearch").onkeydown = e => { if (e.key === "Enter") $("btnSearch").click(); };
+
+async function selectKBApp(app) {
+  state.kbApp = app;
+  $("kbAppName").textContent = app.applicationName + " — " + app.vendorName;
+  $("step-source").classList.add("hidden");
+  $("step-kb-version").classList.remove("hidden");
+
+  const sources = await api("GET", "api/kb/application/" + app.applicationId + "/version/sources");
+  state.kbSources = sources;
+
+  // Unique versions sorted descending
+  const versions = [...new Set(sources.map(s => s.version))];
+  versions.sort((a, b) => {
+    try { return b.localeCompare(a, undefined, { numeric: true }); } catch { return 0; }
+  });
+  $("kbVersion").innerHTML = versions.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
+  updateKBSources();
+}
+
+$("kbVersion").onchange = updateKBSources;
+
+function updateKBSources() {
+  const ver = $("kbVersion").value;
+  const filtered = state.kbSources.filter(s => s.version === ver);
+  $("kbSource").innerHTML = filtered.map((s, i) => {
+    const arch = s.architecture === 64 ? "x64" : s.architecture === 32 ? "x86" : "";
+    return `<option value="${i}">${esc(s.fileName)} (${arch})</option>`;
+  }).join("");
+  const sel = filtered[0];
+  if (sel) {
+    state.kbMeta = { name: sel.productName || state.kbApp.applicationName, manufacturer: sel.vendor || state.kbApp.vendorName, version: sel.version };
+    $("kbDownloadHint").innerHTML = `Download the installer first: <a href="${esc(sel.downloadUrl)}" target="_blank">${esc(sel.downloadUrl)}</a><br>Then select the downloaded file below.`;
+  }
+  $("kbSource").onchange = () => {
+    const s = filtered[parseInt($("kbSource").value)];
+    state.kbMeta = { name: s.productName || state.kbApp.applicationName, manufacturer: s.vendor || state.kbApp.vendorName, version: s.version };
+    $("kbDownloadHint").innerHTML = `Download the installer first: <a href="${esc(s.downloadUrl)}" target="_blank">${esc(s.downloadUrl)}</a><br>Then select the downloaded file below.`;
+  };
+}
+
+$("kbFileInput").onchange = () => { $("btnStartKB").disabled = !$("kbFileInput").files.length; };
+$("btnBackToSearch").onclick = () => { $("step-kb-version").classList.add("hidden"); $("step-source").classList.remove("hidden"); };
+$("btnStartKB").onclick = () => {
+  const file = $("kbFileInput").files[0];
+  if (!file) return;
+  startPipeline(file, state.kbMeta);
+};
+
+// ─── Local file ─────────────────────────────────────────────────────────────
+const dropZone = $("dropZone");
+dropZone.onclick = () => $("fileInput").click();
+dropZone.ondragover = e => { e.preventDefault(); dropZone.classList.add("dragover"); };
+dropZone.ondragleave = () => dropZone.classList.remove("dragover");
+dropZone.ondrop = e => { e.preventDefault(); dropZone.classList.remove("dragover"); handleLocalFile(e.dataTransfer.files[0]); };
+$("fileInput").onchange = () => handleLocalFile($("fileInput").files[0]);
+
+function handleLocalFile(file) {
+  if (!file) return;
+  $("selectedFile").textContent = `Selected: ${file.name} (${(file.size / 1048576).toFixed(2)} MB)`;
+  $("selectedFile").classList.remove("hidden");
+  $("btnUploadLocal").classList.remove("hidden");
+  $("btnUploadLocal").onclick = () => startPipeline(file, null);
+}
+
+// ─── Main Pipeline ──────────────────────────────────────────────────────────
+async function startPipeline(file, metaHint) {
+  $("step-source").classList.add("hidden");
+  $("step-kb-version").classList.add("hidden");
+  $("step-progress").classList.remove("hidden");
+  $("logArea").innerHTML = "";
+  setProgress(0);
+
+  try {
+    // Upload
+    log("Uploading " + file.name + " (" + (file.size / 1048576).toFixed(2) + " MB)...", "info");
+    const upload = await uploadFile(file);
+    log("Upload complete. UUID: " + upload.uuid, "ok");
+    setProgress(20);
+
+    // Metadata
+    log("Extracting metadata...", "info");
+    let meta = metaHint || { name: file.name.replace(/\.[^.]+$/, ""), manufacturer: "Unknown", version: "1.0" };
+    try {
+      const serverMeta = await api("PUT", "api/apm/application/setupFile/getMetadata/" + upload.uuid);
+      if (serverMeta && serverMeta.applicationName) {
+        meta = { name: serverMeta.applicationName, manufacturer: serverMeta.applicationManufacturer || meta.manufacturer, version: serverMeta.applicationVersion || meta.version };
+      }
+    } catch (e) {
+      log("  Server extraction failed: " + e.message + (metaHint ? " (using KB metadata)" : " (using filename)"), "warn");
+    }
+    log("App: " + meta.name + " | " + meta.manufacturer + " | v" + meta.version, "ok");
+    setProgress(30);
+
+    // Command suggestion
+    log("Getting install command...", "info");
+    const installCmd = await getCommandSuggestion(upload, meta);
+    if (installCmd) log("Install: " + installCmd, "ok");
+    else log("No command suggestion — server will determine", "warn");
+    setProgress(40);
+
+    // Create
+    log("Creating application...", "info");
+    await createApplication(upload, meta, installCmd);
+    log("Application submitted", "ok");
+    setProgress(50);
+
+    // Wait for ID
+    log("Waiting for application ID...", "info");
+    const appId = await waitForAppId(upload.uuid);
+    log("Application ID: " + appId, "ok");
+    setProgress(60);
+
+    // Watch status
+    log("Watching packaging status...", "info");
+    const finalStatus = await watchStatus(appId);
+    setProgress(100);
+
+    // Show result
+    $("step-progress").classList.add("hidden");
+    $("step-result").classList.remove("hidden");
+    const isSuccess = !(/fail|cancel/i.test(finalStatus));
+    $("resultContent").innerHTML = isSuccess
+      ? `<div style="color:var(--success);font-size:1.2em;margin-bottom:8px">Packaging Complete</div>
+         <div class="app-id">#${appId}</div>
+         <div style="margin-top:8px"><strong>${esc(meta.name)}</strong> — ${esc(meta.manufacturer)} v${esc(meta.version)}</div>
+         <div style="margin-top:12px"><a href="${esc(state.instance)}/applications/fullStatus/${appId}" target="_blank">Open in App Readiness &rarr;</a></div>`
+      : `<div style="color:var(--error);font-size:1.2em;margin-bottom:8px">Packaging Failed</div>
+         <div class="app-id">#${appId}</div>
+         <div style="margin-top:8px">Status: ${esc(finalStatus)}</div>
+         <div style="margin-top:12px"><a href="${esc(state.instance)}/applications/fullStatus/${appId}" target="_blank">Check details in App Readiness &rarr;</a></div>`;
+
+  } catch (e) {
+    log("FATAL: " + e.message, "err");
+    setProgress(100);
+    $("progressFill").style.background = "var(--error)";
+  }
+}
+
+// ─── Upload file in chunks ──────────────────────────────────────────────────
+async function uploadFile(file) {
+  const uuid = crypto.randomUUID();
+  const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+  const fileName = file.name;
+
+  for (let i = 0; i < totalChunks; i++) {
+    const start = i * CHUNK_SIZE;
+    const chunk = file.slice(start, start + CHUNK_SIZE);
+    const form = new FormData();
+    form.append("dzUuid", uuid);
+    form.append("dzChunkIndex", String(i));
+    form.append("dzTotalFileSize", String(file.size));
+    form.append("dzCurrentChunkSize", String(chunk.size));
+    form.append("dzTotalChunkCount", String(totalChunks));
+    form.append("dzChunkByteOffset", String(start));
+    form.append("dzChunkSize", String(CHUNK_SIZE));
+    form.append("dzFilename", fileName);
+    form.append("userId", state.userId);
+    form.append("file", chunk, fileName);
+
+    const res = await fetch(state.instance + "/api/uploadChunk", {
+      method: "POST",
+      headers: { "x-api-key": state.apiKey, "Authorization": "Bearer " + state.apiKey, "Accept": "application/json" },
+      body: form,
+    });
+    if (!res.ok) { const t = await res.text(); throw new Error("Chunk " + (i+1) + " failed: " + t); }
+    log("  Chunk " + (i+1) + "/" + totalChunks + " uploaded");
+    setProgress(5 + (15 * (i+1) / totalChunks));
+  }
+
+  // Combine
+  await api("PUT", "api/v2/uploadChunk/async", {
+    dzIdentifier: uuid, fileName, expectedBytes: file.size, totalChunks, uploadType: 0,
+  });
+
+  return { uuid, fileName, fileSize: file.size, totalChunks };
+}
+
+// ─── Command suggestion ─────────────────────────────────────────────────────
+async function getCommandSuggestion(upload, meta) {
+  try {
+    const result = await api("POST", "api/application/temp/commands/suggestion", {
+      uid: upload.uuid, filename: upload.fileName, applicationName: meta.name,
+      applicationManufacture: meta.manufacturer, applicationVersion: meta.version,
+      packageType: 10, appId: 0, sendUda: true,
+    });
+    const cmds = (result?.commands || []).filter(c => c.type === 1);
+    const labels = { 3: "KB", 1: "Prog", 2: "AI" };
+    for (const c of cmds) log("  [" + (labels[c.source]||"?") + "] " + c.command, "info");
+
+    for (const src of [3, 1, 2]) {
+      const cands = cmds.filter(c => c.source === src);
+      if (cands.length) {
+        cands.sort((a, b) => ((b.lastResult > 0 ? 1 : 0) - (a.lastResult > 0 ? 1 : 0)) || ((b.successRate||0) - (a.successRate||0)));
+        return cands[0].command;
+      }
+    }
+    return null;
+  } catch (e) { log("  Command suggestion failed: " + e.message, "warn"); return null; }
+}
+
+// ─── Create application ─────────────────────────────────────────────────────
+async function createApplication(upload, meta, installCmd) {
+  const appInfo = {
+    appVer: meta.version, manufacturer: meta.manufacturer, name: meta.name,
+    pkgVer: "1.0", siteCode: "GLOBAL", isDiscovery: false, preReqIds: [], upgradeAppIds: [],
+    existingAppId: -1, fullPreReqInfo: [], source: 0, sourceFileName: upload.fileName,
+    sendUda: true, operatingSystemType: 0, isAutomatedRepackaging: false,
+  };
+  if (installCmd) appInfo.cmdLine = installCmd;
+
+  const body = {
+    applicationId: -1, applicationInfo: appInfo, preReqs: [], fullPreReqInfo: [],
+    upgradeAppIds: [], setAsMainSource: true,
+    uploadChunkModel: { dzIdentifier: upload.uuid, fileName: upload.fileName, expectedBytes: upload.fileSize, totalChunks: upload.totalChunks },
+    packageTypeMatrixModel: { from: 0, to: state.outputBitmask },
+    runImmediately: true, runEvAsAnotherUser: null,
+  };
+  if (state.vmGroupId > 0) body.vmGroupId = state.vmGroupId;
+  if (state.vmGroupForTestingId > 0) body.vmGroupForTestingId = state.vmGroupForTestingId;
+
+  return await api("POST", "api/apm/application/async", body);
+}
+
+// ─── Wait for app ID ────────────────────────────────────────────────────────
+async function waitForAppId(uuid) {
+  const deadline = Date.now() + 300000;
+  while (Date.now() < deadline) {
+    try {
+      const s = await api("GET", "api/apm/application/creation/" + uuid + "/state");
+      const id = s?.data?.applicationId || s?.applicationId;
+      if (id && id > 0) return id;
+    } catch {}
+    await sleep(10000);
+    log("  Waiting...");
+  }
+  throw new Error("Timed out waiting for application ID");
+}
+
+// ─── Watch status ───────────────────────────────────────────────────────────
+async function watchStatus(appId) {
+  const success = new Set(["ReadyForQualityReview","QualityReview","ReadyForUat","Uat","ReadyForPublishing","Published"]);
+  const failure = new Set(["Failed","FailedPackaging","FailedToPackage","Cancelled"]);
+  const deadline = Date.now() + 60 * 60000;
+  let prev = "";
+
+  while (Date.now() < deadline) {
+    try {
+      const d = await api("GET", "api/apm/application/" + appId);
+      const st = d?.ext?.status || "Unknown";
+      const pct = d?.ext?.progressPercent || 0;
+      if (st + pct !== prev) { log("  " + st + " (" + pct + "%)", success.has(st) ? "ok" : failure.has(st) ? "err" : "info"); prev = st + pct; }
+      setProgress(60 + pct * 0.4);
+      if (success.has(st) || failure.has(st)) return st;
+    } catch (e) { log("  Poll error: " + e.message, "warn"); }
+    await sleep(30000);
+  }
+  return "Timeout";
+}
+
+// ─── Utilities ──────────────────────────────────────────────────────────────
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function esc(s) { const d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML; }
+
+$("btnNewApp").onclick = () => {
+  $("step-result").classList.add("hidden");
+  $("step-source").classList.remove("hidden");
+  $("progressFill").style.background = "var(--primary)";
+  state.kbApp = null; state.kbSources = []; state.kbMeta = null;
+  $("kbResults").innerHTML = ""; $("kbSearch").value = "";
+  $("selectedFile").classList.add("hidden"); $("btnUploadLocal").classList.add("hidden");
+};
+</script>
+</body>
+</html>
