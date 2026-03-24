@@ -36,7 +36,7 @@ function Search-JuribaAppRKnowledgeBase {
         [string]$Search,
 
         [Parameter(Mandatory = $true, ParameterSetName = 'ById')]
-        [int]$ApplicationId
+        [string]$ApplicationId
     )
 
     $conn = Get-JuribaAppRConnection -Instance $Instance -APIKey $APIKey
