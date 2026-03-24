@@ -125,7 +125,6 @@ function Send-JuribaAppRSetupFile {
                     $multipartContent.Add([System.Net.Http.StringContent]::new($chunkByteOffset.ToString()), "dzChunkByteOffset")
                     $multipartContent.Add([System.Net.Http.StringContent]::new($chunkSize.ToString()), "dzChunkSize")
                     $multipartContent.Add([System.Net.Http.StringContent]::new($fileName), "dzFilename")
-                    $multipartContent.Add([System.Net.Http.StringContent]::new("1"), "userId")
 
                     # Add the file content
                     $chunkBytes = [System.IO.File]::ReadAllBytes($chunkTempPath)
