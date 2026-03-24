@@ -142,9 +142,12 @@ async function api(method, endpoint, body = null) {
 
     const options = { method, headers };
 
+    // Always set Content-Type for non-GET requests (server returns 415 without it)
     if (body !== null) {
         headers["Content-Type"] = "application/json";
         options.body = JSON.stringify(body);
+    } else if (method !== "GET") {
+        headers["Content-Type"] = "application/json";
     }
 
     const response = await fetch(url, options);
