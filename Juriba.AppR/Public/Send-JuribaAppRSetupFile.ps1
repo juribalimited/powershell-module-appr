@@ -77,6 +77,18 @@ function Send-JuribaAppRSetupFile {
         "Accept"    = "application/json"
     }
 
+    # Resolve the current user ID — upload endpoint requires userId in the form data
+    $userId = "0"
+    try {
+        $whoAmI = Invoke-RestMethod -Uri "$($conn.Instance)/api/apm/user/whoAmI" `
+            -Headers $headers -Method GET
+        if ($whoAmI) { $userId = $whoAmI.ToString().Trim() }
+        Write-Verbose "Resolved userId: $userId"
+    }
+    catch {
+        Write-Verbose "Could not resolve userId: $($_.Exception.Message)"
+    }
+
     # Upload each chunk
     $fileStream = [System.IO.File]::OpenRead($fileInfo.FullName)
     try {
@@ -125,8 +137,7 @@ function Send-JuribaAppRSetupFile {
                     $multipartContent.Add([System.Net.Http.StringContent]::new($chunkByteOffset.ToString()), "dzChunkByteOffset")
                     $multipartContent.Add([System.Net.Http.StringContent]::new($chunkSize.ToString()), "dzChunkSize")
                     $multipartContent.Add([System.Net.Http.StringContent]::new($fileName), "dzFilename")
-                    # userId is required by the server — actual user is resolved from the API key
-                    $multipartContent.Add([System.Net.Http.StringContent]::new("0"), "userId")
+                    $multipartContent.Add([System.Net.Http.StringContent]::new($userId), "userId")
 
                     # Add the file content
                     $chunkBytes = [System.IO.File]::ReadAllBytes($chunkTempPath)

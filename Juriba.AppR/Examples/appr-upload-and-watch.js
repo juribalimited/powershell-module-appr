@@ -66,19 +66,24 @@ async function main() {
     const defaults = await getDefaultSettings();
     log(`  ✓ VM Group: ${defaults.vmGroupId}, Test Group: ${defaults.vmGroupForTestingId}, Output Bitmask: ${defaults.outputBitmask}`);
 
-    // 3. Upload the setup file in chunks
-    log(`\n③ Uploading ${SETUP_FILE_PATH}...`);
-    const upload = await uploadSetupFile(SETUP_FILE_PATH);
+    // 3. Resolve current user ID (required by upload endpoint)
+    log("\n③ Resolving user identity...");
+    const userId = await resolveUserId();
+    log(`  ✓ User ID: ${userId}`);
+
+    // 4. Upload the setup file in chunks
+    log(`\n④ Uploading ${SETUP_FILE_PATH}...`);
+    const upload = await uploadSetupFile(SETUP_FILE_PATH, userId);
     log(`  ✓ Uploaded: ${upload.fileName} (${(upload.fileSize / 1048576).toFixed(2)} MB)`);
     log(`  ✓ UUID: ${upload.uuid}`);
 
-    // 4. Extract metadata from the uploaded binary (server-side)
-    log("\n④ Extracting metadata...");
+    // 5. Extract metadata from the uploaded binary (server-side)
+    log("\n⑤ Extracting metadata...");
     const metadata = await extractMetadata(upload.uuid);
     log(`  ✓ Name: ${metadata.name}, Manufacturer: ${metadata.manufacturer}, Version: ${metadata.version}`);
 
-    // 5. Get install command suggestion (Juriba KB → Programmatic → AI)
-    log("\n⑤ Getting install command suggestion...");
+    // 6. Get install command suggestion (Juriba KB → Programmatic → AI)
+    log("\n⑥ Getting install command suggestion...");
     const installCmd = await getCommandSuggestion(upload, metadata);
     if (installCmd) {
         log(`  ✓ Install command: ${installCmd}`);
@@ -86,21 +91,21 @@ async function main() {
         log("  ⚠ No command suggestion available — packaging may fail");
     }
 
-    // 6. Create the application
-    log("\n⑥ Creating application...");
+    // 7. Create the application
+    log("\n⑦ Creating application...");
     const createResult = await createApplication({ upload, metadata, defaults, installCmd });
     log("  ✓ Application submitted");
 
-    // 7. Wait for creation to resolve and give us an app ID
-    log("\n⑦ Waiting for application ID...");
+    // 8. Wait for creation to resolve and give us an app ID
+    log("\n⑧ Waiting for application ID...");
     const appId = await waitForApplicationId(upload.uuid);
     log(`  ✓ Application ID: ${appId}`);
 
-    // 8. Poll until packaging completes or fails
-    log(`\n⑧ Watching packaging status (every ${POLL_INTERVAL_SECONDS}s, timeout ${POLL_TIMEOUT_MINUTES}m)...`);
+    // 9. Poll until packaging completes or fails
+    log(`\n⑨ Watching packaging status (every ${POLL_INTERVAL_SECONDS}s, timeout ${POLL_TIMEOUT_MINUTES}m)...`);
     const result = await watchStatus(appId);
 
-    // 9. Report the outcome
+    // 10. Report the outcome
     log("\n──────────────────────────────────────");
     if (result.success) {
         log(`✓ COMPLETE: ${result.status} (${result.progress}%) after ${result.elapsed}`);
@@ -174,11 +179,27 @@ async function api(method, endpoint, body = null) {
 
 /**
  * Validates the API key by calling an endpoint that supports x-api-key auth.
- * Note: /api/user/whoami does NOT support API key auth — it returns HTML.
- * We use packageTypesMatrix instead.
  */
 async function validateConnection() {
     await api("GET", "api/packaging/upload/packageTypesMatrix");
+}
+
+
+// ── Step 3: Resolve user ID ─────────────────────────────────────────────────
+
+/**
+ * Gets the current user's numeric ID from the whoAmI endpoint.
+ * The upload endpoint requires userId in the form data to attribute
+ * the upload to the correct user.
+ */
+async function resolveUserId() {
+    try {
+        const result = await api("GET", "api/apm/user/whoAmI");
+        if (result !== null && result !== undefined) return String(result);
+    } catch (err) {
+        log(`  ⚠ Could not resolve user ID: ${err.message}. Using 0.`);
+    }
+    return "0";
 }
 
 
@@ -230,7 +251,7 @@ async function getDefaultSettings() {
  *
  * Returns { uuid, fileName, fileSize, totalChunks }.
  */
-async function uploadSetupFile(filePath) {
+async function uploadSetupFile(filePath, userId = "0") {
     const stat     = fs.statSync(filePath);
     const fileName = path.basename(filePath);
     const fileSize = stat.size;
@@ -252,7 +273,7 @@ async function uploadSetupFile(filePath) {
 
             await uploadChunk({
                 uuid, fileName, fileSize, chunkSize, totalChunks,
-                chunkIndex: i, chunkByteOffset: offset, buffer,
+                chunkIndex: i, chunkByteOffset: offset, buffer, userId,
             });
 
             log(`  Chunk ${i + 1}/${totalChunks} uploaded`);
@@ -276,7 +297,7 @@ async function uploadSetupFile(filePath) {
  * validates the extension and rejects .tmp files), then uses fs.openAsBlob()
  * with native FormData for reliable binary upload handling.
  */
-async function uploadChunk({ uuid, fileName, fileSize, chunkSize, totalChunks, chunkIndex, chunkByteOffset, buffer }) {
+async function uploadChunk({ uuid, fileName, fileSize, chunkSize, totalChunks, chunkIndex, chunkByteOffset, buffer, userId = "0" }) {
     const url = `${INSTANCE_URL.replace(/\/+$/, "")}/api/uploadChunk`;
     const os = require("os");
 
@@ -302,7 +323,7 @@ async function uploadChunk({ uuid, fileName, fileSize, chunkSize, totalChunks, c
         form.append("dzChunkByteOffset",  String(chunkByteOffset));
         form.append("dzChunkSize",        String(CHUNK_SIZE_BYTES));
         form.append("dzFilename",         fileName);
-        form.append("userId",             "0");   // Required by server — actual user resolved from API key
+        form.append("userId",             userId);
         form.append("file",               fileBlob, fileName);
 
         const response = await fetch(url, {
