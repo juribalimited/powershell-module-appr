@@ -310,19 +310,37 @@ async function uploadChunk({ uuid, fileName, fileSize, chunkSize, totalChunks, c
 
     const body = Buffer.concat(parts);
 
-    const response = await fetch(url, {
-        method: "POST",
-        headers: {
-            "x-api-key":    API_KEY,
-            "Accept":       "application/json",
-            "Content-Type": `multipart/form-data; boundary=${boundary}`,
-        },
-        body,
+    // Use Node https module directly — fetch can mangle Buffer bodies and
+    // Content-Length. The upload endpoint also requires Authorization: Bearer.
+    const https = require("https");
+    const http  = require("http");
+    const { URL } = require("url");
+
+    const parsedUrl = new URL(url);
+    const transport = parsedUrl.protocol === "https:" ? https : http;
+
+    const response = await new Promise((resolve, reject) => {
+        const req = transport.request(parsedUrl, {
+            method: "POST",
+            headers: {
+                "x-api-key":      API_KEY,
+                "Authorization":  `Bearer ${API_KEY}`,
+                "Accept":         "application/json",
+                "Content-Type":   `multipart/form-data; boundary=${boundary}`,
+                "Content-Length":  body.length,
+            },
+        }, (res) => {
+            let data = "";
+            res.on("data", chunk => data += chunk);
+            res.on("end", () => resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode, text: data }));
+        });
+        req.on("error", reject);
+        req.write(body);
+        req.end();
     });
 
     if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Chunk upload failed: HTTP ${response.status} — ${text}`);
+        throw new Error(`Chunk upload failed: HTTP ${response.status} — ${response.text}`);
     }
 }
 
