@@ -288,10 +288,15 @@ function New-JuribaAppRApplication {
         totalChunks   = $TotalChunks
     }
 
-    # packageTypeMatrixModel — output format bitmask from default settings
-    # UI sends { from: 0, to: <bitmask> } with NO sourceAction field
+    # packageTypeMatrixModel — determines repackaging vs wrapping workflow
+    # from=0: repackage from source (VM required, for MSI/MSIX output)
+    # from=4: wrap only (no VM, for IntuneWin/PSADT only)
+    $needsRepackaging = ($outputBitmask -band 1) -or ($outputBitmask -band 4) -or ($outputBitmask -band 8)  # MSI, MSIX, MSIX App Attach
+    $matrixFrom = if ($needsRepackaging) { 0 } else { 4 }
+    Write-Verbose "Output bitmask=$outputBitmask, needsRepackaging=$needsRepackaging, matrixFrom=$matrixFrom"
+
     $packageTypeMatrixModel = @{
-        from = 0
+        from = $matrixFrom
         to   = $outputBitmask
     }
 
@@ -309,9 +314,12 @@ function New-JuribaAppRApplication {
         runEvAsAnotherUser     = $null
     }
 
-    # VM groups from default settings or explicit parameters
-    if ($resolvedVMGroupId -gt 0) {
+    # VM groups — only needed for repackaging, use -1 for wrapping-only
+    if ($needsRepackaging -and $resolvedVMGroupId -gt 0) {
         $body['vmGroupId'] = $resolvedVMGroupId
+    }
+    elseif (-not $needsRepackaging) {
+        $body['vmGroupId'] = -1
     }
     if ($resolvedVMGroupForTestingId -gt 0) {
         $body['vmGroupForTestingId'] = $resolvedVMGroupForTestingId

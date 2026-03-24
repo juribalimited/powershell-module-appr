@@ -232,7 +232,11 @@ async function getDefaultSettings() {
         log("  ⚠ WARNING: No output formats enabled in Default Settings. Packaging may fail.");
     }
 
-    return { vmGroupId, vmGroupForTestingId, outputBitmask };
+    // Determine if repackaging is needed (MSI=1, MSIX=4, MSIX App Attach=8)
+    // vs wrapping only (IntuneWin=32, PSADT=128, AppV=2)
+    const needsRepackaging = !!(outputBitmask & (1 | 4 | 8));
+
+    return { vmGroupId, vmGroupForTestingId, outputBitmask, needsRepackaging };
 }
 
 
@@ -548,14 +552,16 @@ async function createApplication({ upload, metadata, defaults, installCmd }) {
             totalChunks:   upload.totalChunks,
         },
         packageTypeMatrixModel: {
-            from: 0,
+            from: defaults.needsRepackaging ? 0 : 4,  // 0=repackage (VM), 4=wrap only (no VM)
             to:   defaults.outputBitmask,
         },
         runImmediately:     true,
         runEvAsAnotherUser: null,
     };
 
-    if (defaults.vmGroupId > 0)           body.vmGroupId           = defaults.vmGroupId;
+    // VM group only needed for repackaging (MSI/MSIX); -1 for wrapping-only (IntuneWin/PSADT)
+    if (defaults.needsRepackaging && defaults.vmGroupId > 0) body.vmGroupId = defaults.vmGroupId;
+    else if (!defaults.needsRepackaging) body.vmGroupId = -1;
     if (defaults.vmGroupForTestingId > 0) body.vmGroupForTestingId = defaults.vmGroupForTestingId;
 
     return await api("POST", "api/apm/application/async", body);
