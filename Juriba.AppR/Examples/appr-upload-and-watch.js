@@ -77,22 +77,34 @@ async function main() {
     log(`  ✓ Uploaded: ${upload.fileName} (${(upload.fileSize / 1048576).toFixed(2)} MB)`);
     log(`  ✓ UUID: ${upload.uuid}`);
 
-    // 5. Extract metadata from the uploaded binary (server-side)
-    log("\n⑤ Extracting metadata...");
-    const metadata = await extractMetadata(upload.uuid);
-    log(`  ✓ Name: ${metadata.name}, Manufacturer: ${metadata.manufacturer}, Version: ${metadata.version}`);
+    // 5. Extract metadata and get install command suggestion
+    //    The command suggestion API returns metadata (name, manufacturer, version)
+    //    alongside the install commands. We use this as the primary metadata source
+    //    since the dedicated extraction endpoint can be unreliable via API key auth.
+    //    Server-side extraction is tried first as a preferred source.
+    log("\n⑤ Extracting metadata & getting install command...");
+    let metadata = await extractMetadata(upload.uuid);
+    const { installCmd, suggestionMeta } = await getCommandSuggestion(upload, metadata);
 
-    // 6. Get install command suggestion (Juriba KB → Programmatic → AI)
-    log("\n⑥ Getting install command suggestion...");
-    const installCmd = await getCommandSuggestion(upload, metadata);
+    // Use command suggestion metadata to fill in any gaps from extraction
+    if (suggestionMeta) {
+        if (metadata.name === path.parse(SETUP_FILE_PATH).name && suggestionMeta.name)
+            metadata.name = suggestionMeta.name;
+        if (metadata.manufacturer === "Unknown" && suggestionMeta.manufacturer)
+            metadata.manufacturer = suggestionMeta.manufacturer;
+        if (metadata.version === "1.0" && suggestionMeta.version)
+            metadata.version = suggestionMeta.version;
+    }
+
+    log(`  ✓ Name: ${metadata.name}, Manufacturer: ${metadata.manufacturer}, Version: ${metadata.version}`);
     if (installCmd) {
         log(`  ✓ Install command: ${installCmd}`);
     } else {
         log("  ⚠ No command suggestion available — packaging may fail");
     }
 
-    // 7. Create the application
-    log("\n⑦ Creating application...");
+    // 6. Create the application
+    log("\n⑥ Creating application...");
     const createResult = await createApplication({ upload, metadata, defaults, installCmd });
     log("  ✓ Application submitted");
 
@@ -410,9 +422,11 @@ async function extractMetadata(uuid) {
  * Within each source, prefers previously successful commands, then highest
  * success rate, then the API's own ranking order.
  *
- * Returns the install command string, or null if none available.
+ * Returns { installCmd, suggestionMeta } where suggestionMeta contains
+ * the app name/manufacturer/version from the KB response.
  */
 async function getCommandSuggestion(upload, metadata) {
+    const noResult = { installCmd: null, suggestionMeta: null };
     try {
         const result = await api("POST", "api/application/temp/commands/suggestion", {
             uid:                     upload.uuid,
@@ -425,10 +439,17 @@ async function getCommandSuggestion(upload, metadata) {
             sendUda:                 true,
         });
 
+        // Extract metadata from the suggestion response (KB knows the real name)
+        const suggestionMeta = {
+            name:         result?.applicationName         || null,
+            manufacturer: result?.applicationManufacture   || null,
+            version:      result?.applicationVersion       || null,
+        };
+
         const commands = result?.commands;
         if (!commands || commands.length === 0) {
             log("  No command suggestions returned");
-            return null;
+            return { installCmd: null, suggestionMeta };
         }
 
         // Filter to install commands (type=1)
@@ -445,8 +466,6 @@ async function getCommandSuggestion(upload, metadata) {
         for (const sourcePriority of [3, 1, 2]) {
             const candidates = installCmds.filter(c => c.source === sourcePriority);
             if (candidates.length > 0) {
-                // Within a source: prefer last-used successful (lastResult > 0),
-                // then highest successRate, then first (API's own ranking)
                 candidates.sort((a, b) => {
                     const aLast = a.lastResult > 0 ? 0 : 1;
                     const bLast = b.lastResult > 0 ? 0 : 1;
@@ -456,14 +475,14 @@ async function getCommandSuggestion(upload, metadata) {
                 const pick = candidates[0];
                 const src = sourceLabels[sourcePriority];
                 log(`  Selected [${src}]: ${pick.command}`);
-                return pick.command;
+                return { installCmd: pick.command, suggestionMeta };
             }
         }
 
-        return null;
+        return { installCmd: null, suggestionMeta };
     } catch (err) {
         log(`  ⚠ Command suggestion failed: ${err.message}`);
-        return null;
+        return noResult;
     }
 }
 
