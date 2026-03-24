@@ -269,78 +269,56 @@ async function uploadSetupFile(filePath) {
  * Uploads a single chunk as multipart/form-data.
  * Uses the Dropzone.js field names the server expects (dzUuid, dzChunkIndex, etc.).
  *
- * Builds the multipart body manually using Buffers to avoid Node.js native
- * FormData/Blob quirks with binary data that cause HTTP 500 on the server.
+ * Writes the chunk to a temp file (with the original filename — the server
+ * validates the extension and rejects .tmp files), then uses fs.openAsBlob()
+ * with native FormData for reliable binary upload handling.
  */
 async function uploadChunk({ uuid, fileName, fileSize, chunkSize, totalChunks, chunkIndex, chunkByteOffset, buffer }) {
     const url = `${INSTANCE_URL.replace(/\/+$/, "")}/api/uploadChunk`;
-    const boundary = `----JuribaUpload${Date.now()}`;
+    const os = require("os");
 
-    // Build multipart body manually
-    const fields = {
-        dzUuid:             uuid,
-        dzChunkIndex:       String(chunkIndex),
-        dzTotalFileSize:    String(fileSize),
-        dzCurrentChunkSize: String(chunkSize),
-        dzTotalChunkCount:  String(totalChunks),
-        dzChunkByteOffset:  String(chunkByteOffset),
-        dzChunkSize:        String(CHUNK_SIZE_BYTES),
-        dzFilename:         fileName,
-    };
+    // Write chunk to a temp file with the original filename
+    // (server validates the file extension in the Content-Disposition)
+    const tmpDir = path.join(os.tmpdir(), `juriba-${uuid}`);
+    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+    const tmpPath = path.join(tmpDir, fileName);
 
-    const parts = [];
+    try {
+        fs.writeFileSync(tmpPath, buffer);
 
-    // Add string fields
-    for (const [name, value] of Object.entries(fields)) {
-        parts.push(Buffer.from(
-            `--${boundary}\r\n` +
-            `Content-Disposition: form-data; name="${name}"\r\n\r\n` +
-            `${value}\r\n`
-        ));
-    }
+        // Create a proper Blob from the file on disk
+        const fileBlob = await fs.promises.readFile(tmpPath)
+            .then(data => new Blob([data], { type: "application/octet-stream" }));
 
-    // Add file field
-    parts.push(Buffer.from(
-        `--${boundary}\r\n` +
-        `Content-Disposition: form-data; name="file"; filename="${fileName}"\r\n` +
-        `Content-Type: application/octet-stream\r\n\r\n`
-    ));
-    parts.push(buffer);
-    parts.push(Buffer.from(`\r\n--${boundary}--\r\n`));
+        const form = new FormData();
+        form.append("dzUuid",             uuid);
+        form.append("dzChunkIndex",       String(chunkIndex));
+        form.append("dzTotalFileSize",    String(fileSize));
+        form.append("dzCurrentChunkSize", String(chunkSize));
+        form.append("dzTotalChunkCount",  String(totalChunks));
+        form.append("dzChunkByteOffset",  String(chunkByteOffset));
+        form.append("dzChunkSize",        String(CHUNK_SIZE_BYTES));
+        form.append("dzFilename",         fileName);
+        form.append("file",               fileBlob, fileName);
 
-    const body = Buffer.concat(parts);
-
-    // Use Node https module directly — fetch can mangle Buffer bodies and
-    // Content-Length. The upload endpoint also requires Authorization: Bearer.
-    const https = require("https");
-    const http  = require("http");
-    const { URL } = require("url");
-
-    const parsedUrl = new URL(url);
-    const transport = parsedUrl.protocol === "https:" ? https : http;
-
-    const response = await new Promise((resolve, reject) => {
-        const req = transport.request(parsedUrl, {
+        const response = await fetch(url, {
             method: "POST",
             headers: {
-                "x-api-key":      API_KEY,
-                "Authorization":  `Bearer ${API_KEY}`,
-                "Accept":         "application/json",
-                "Content-Type":   `multipart/form-data; boundary=${boundary}`,
-                "Content-Length":  body.length,
+                "x-api-key":     API_KEY,
+                "Authorization": `Bearer ${API_KEY}`,
+                "Accept":        "application/json",
+                // Do NOT set Content-Type — let FormData set boundary automatically
             },
-        }, (res) => {
-            let data = "";
-            res.on("data", chunk => data += chunk);
-            res.on("end", () => resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode, text: data }));
+            body: form,
         });
-        req.on("error", reject);
-        req.write(body);
-        req.end();
-    });
 
-    if (!response.ok) {
-        throw new Error(`Chunk upload failed: HTTP ${response.status} — ${response.text}`);
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`Chunk upload failed: HTTP ${response.status} — ${text}`);
+        }
+    } finally {
+        try { fs.unlinkSync(tmpPath); } catch {}
+        try { fs.rmdirSync(tmpDir); } catch {}
     }
 }
 
