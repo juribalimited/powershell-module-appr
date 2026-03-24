@@ -108,52 +108,34 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // Extract PE metadata from an uploaded file via PowerShell FileVersionInfo
-    // POST /metadata (multipart form with "file" field)
-    if (req.url === "/metadata" && req.method === "POST") {
+    // Extract PE metadata via PowerShell FileVersionInfo
+    // POST /metadata?name=filename.exe  (raw file bytes as body, NOT multipart)
+    if (req.url.startsWith("/metadata") && req.method === "POST") {
+        const fileName = new URL(req.url, "http://localhost").searchParams.get("name") || "upload.exe";
         const chunks = [];
         req.on("data", c => chunks.push(c));
         req.on("end", () => {
             const body = Buffer.concat(chunks);
-            // Parse the filename from Content-Disposition in the multipart body
-            const boundaryMatch = (req.headers["content-type"] || "").match(/boundary=(.+)/);
-            if (!boundaryMatch) { res.writeHead(400); res.end("No boundary"); return; }
-
-            // Extract filename from the multipart headers
-            const bodyStr = body.toString("latin1");
-            const fnMatch = bodyStr.match(/filename="([^"]+)"/);
-            const fileName = fnMatch ? fnMatch[1] : "upload.exe";
-
-            // Write to temp file
             const tmpDir = path.join(require("os").tmpdir(), "appr-meta-" + Date.now());
             fs.mkdirSync(tmpDir, { recursive: true });
             const tmpPath = path.join(tmpDir, fileName);
+            fs.writeFileSync(tmpPath, body);
 
-            // Extract just the file content from multipart (between the headers and closing boundary)
-            const boundary = boundaryMatch[1].trim();
-            const fileStart = body.indexOf(Buffer.from("\r\n\r\n")) + 4;
-            const closingBoundary = Buffer.from("\r\n--" + boundary);
-            let fileEnd = body.length;
-            for (let i = fileStart; i < body.length - closingBoundary.length; i++) {
-                if (body.slice(i, i + closingBoundary.length).equals(closingBoundary)) { fileEnd = i; break; }
-            }
-            fs.writeFileSync(tmpPath, body.slice(fileStart, fileEnd));
-
-            // Run PowerShell to get FileVersionInfo
             const { execSync } = require("child_process");
+            const corsHeaders = { "Content-Type": "application/json", "access-control-allow-origin": "*", "access-control-allow-headers": "*" };
             try {
                 const psCmd = `[System.Diagnostics.FileVersionInfo]::GetVersionInfo('${tmpPath.replace(/'/g, "''")}') | Select-Object ProductName,CompanyName,ProductVersion | ConvertTo-Json -Compress`;
-                const raw = execSync(`pwsh -NoProfile -Command "${psCmd}"`, { encoding: "utf8", timeout: 10000 });
+                const raw = execSync(`pwsh -NoProfile -Command "${psCmd}"`, { encoding: "utf8", timeout: 15000 });
                 const info = JSON.parse(raw.trim());
-                res.writeHead(200, { "Content-Type": "application/json", "access-control-allow-origin": "*" });
+                res.writeHead(200, corsHeaders);
                 res.end(JSON.stringify({
                     name: (info.ProductName || "").trim() || null,
                     manufacturer: (info.CompanyName || "").trim() || null,
                     version: (info.ProductVersion || "").trim() || null,
                 }));
             } catch (e) {
-                res.writeHead(200, { "Content-Type": "application/json", "access-control-allow-origin": "*" });
-                res.end(JSON.stringify({ name: null, manufacturer: null, version: null }));
+                res.writeHead(200, corsHeaders);
+                res.end(JSON.stringify({ name: null, manufacturer: null, version: null, error: e.message }));
             } finally {
                 try { fs.unlinkSync(tmpPath); } catch {}
                 try { fs.rmdirSync(tmpDir); } catch {}

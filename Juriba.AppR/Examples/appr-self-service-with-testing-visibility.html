@@ -375,8 +375,7 @@ async function runPipeline(file, metaHint) {
     log("  Server extraction unavailable", "warn");
     if (!metaResolved) {
       try {
-        const peForm = new FormData(); peForm.append("file", file, file.name);
-        const peRes = await fetch("/metadata", { method: "POST", body: peForm });
+        const peRes = await fetch("/metadata?name=" + encodeURIComponent(file.name), { method: "POST", body: file });
         if (peRes.ok) { const pe = await peRes.json(); if (pe.name) { meta.name = pe.name; meta.manufacturer = pe.manufacturer || meta.manufacturer; meta.version = pe.version || meta.version; metaResolved = true; log("  PE header extraction OK", "ok"); } }
       } catch (e2) { log("  PE extraction unavailable", "warn"); }
     }
