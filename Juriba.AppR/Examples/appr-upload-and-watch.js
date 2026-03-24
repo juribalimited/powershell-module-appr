@@ -268,29 +268,56 @@ async function uploadSetupFile(filePath) {
 /**
  * Uploads a single chunk as multipart/form-data.
  * Uses the Dropzone.js field names the server expects (dzUuid, dzChunkIndex, etc.).
+ *
+ * Builds the multipart body manually using Buffers to avoid Node.js native
+ * FormData/Blob quirks with binary data that cause HTTP 500 on the server.
  */
 async function uploadChunk({ uuid, fileName, fileSize, chunkSize, totalChunks, chunkIndex, chunkByteOffset, buffer }) {
     const url = `${INSTANCE_URL.replace(/\/+$/, "")}/api/uploadChunk`;
+    const boundary = `----JuribaUpload${Date.now()}`;
 
-    // Build multipart form manually using the Blob/FormData available in Node 18+
-    const form = new FormData();
-    form.append("dzUuid",            uuid);
-    form.append("dzChunkIndex",      String(chunkIndex));
-    form.append("dzTotalFileSize",   String(fileSize));
-    form.append("dzCurrentChunkSize", String(chunkSize));
-    form.append("dzTotalChunkCount", String(totalChunks));
-    form.append("dzChunkByteOffset", String(chunkByteOffset));
-    form.append("dzChunkSize",       String(CHUNK_SIZE_BYTES));
-    form.append("dzFilename",        fileName);
-    form.append("file", new Blob([buffer], { type: "application/octet-stream" }), fileName);
+    // Build multipart body manually
+    const fields = {
+        dzUuid:             uuid,
+        dzChunkIndex:       String(chunkIndex),
+        dzTotalFileSize:    String(fileSize),
+        dzCurrentChunkSize: String(chunkSize),
+        dzTotalChunkCount:  String(totalChunks),
+        dzChunkByteOffset:  String(chunkByteOffset),
+        dzChunkSize:        String(CHUNK_SIZE_BYTES),
+        dzFilename:         fileName,
+    };
+
+    const parts = [];
+
+    // Add string fields
+    for (const [name, value] of Object.entries(fields)) {
+        parts.push(Buffer.from(
+            `--${boundary}\r\n` +
+            `Content-Disposition: form-data; name="${name}"\r\n\r\n` +
+            `${value}\r\n`
+        ));
+    }
+
+    // Add file field
+    parts.push(Buffer.from(
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="file"; filename="${fileName}"\r\n` +
+        `Content-Type: application/octet-stream\r\n\r\n`
+    ));
+    parts.push(buffer);
+    parts.push(Buffer.from(`\r\n--${boundary}--\r\n`));
+
+    const body = Buffer.concat(parts);
 
     const response = await fetch(url, {
         method: "POST",
         headers: {
-            "x-api-key": API_KEY,
-            "Accept":    "application/json",
+            "x-api-key":    API_KEY,
+            "Accept":       "application/json",
+            "Content-Type": `multipart/form-data; boundary=${boundary}`,
         },
-        body: form,
+        body,
     });
 
     if (!response.ok) {
