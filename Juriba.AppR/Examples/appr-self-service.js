@@ -169,6 +169,7 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, () => {
     console.log(`\n  App Readiness Self-Service Portal`);
-    console.log(`  ---------------------------------`);
-    console.log(`  Open http://localhost:${PORT} in your browser\n`);
+    console.log(`  ─────────────────────────────────`);
+    console.log(`    http://localhost:${PORT}/          Standard portal`);
+    console.log(`    http://localhost:${PORT}/testing   With smoke test monitoring\n`);
 });
