@@ -151,8 +151,15 @@ function setProgress(pct) {
 }
 
 // ─── API helper ─────────────────────────────────────────────────────────────
+// Routes through the local proxy server to bypass CORS.
+// URL format: /proxy/{base64(instance)}/api/...
+function proxyUrl(endpoint) {
+  const b64 = btoa(state.instance.replace(/\/+$/, ""));
+  return "/proxy/" + b64 + "/" + endpoint.replace(/^\/+/, "");
+}
+
 async function api(method, endpoint, body = null) {
-  const url = state.instance.replace(/\/+$/, "") + "/" + endpoint.replace(/^\/+/, "");
+  const url = proxyUrl(endpoint);
   const headers = { "x-api-key": state.apiKey, "Accept": "application/json" };
   const opts = { method, headers };
   if (body !== null) {
@@ -400,7 +407,7 @@ async function uploadFile(file) {
     form.append("userId", state.userId);
     form.append("file", chunk, fileName);
 
-    const res = await fetch(state.instance + "/api/uploadChunk", {
+    const res = await fetch(proxyUrl("api/uploadChunk"), {
       method: "POST",
       headers: { "x-api-key": state.apiKey, "Authorization": "Bearer " + state.apiKey, "Accept": "application/json" },
       body: form,
