@@ -232,12 +232,12 @@ $("btnSearch").onclick = async () => {
   $("kbResults").innerHTML = "<div style='color:var(--muted);padding:12px'>Searching...</div>";
   try {
     const results = await api("GET", "api/kb/application?search=" + encodeURIComponent(term));
-    if (!results || !results.length) { $("kbResults").innerHTML = "<div style='padding:12px;color:var(--muted)'>No results. Try the Upload tab.</div>"; return; }
+    if (!results || !results.length) { $("kbResults").innerHTML = "<div style='padding:12px;color:var(--muted)'>No results found. Try the Upload tab instead.</div>"; return; }
     $("kbResults").innerHTML = results.map((r, i) =>
       `<div class="result-item" data-idx="${i}"><span class="name">${esc(r.applicationName)}</span><br><span class="vendor">${esc(r.vendorName)}</span></div>`
     ).join("");
     $("kbResults").querySelectorAll(".result-item").forEach(el => { el.onclick = () => selectKBApp(results[+el.dataset.idx]); });
-  } catch (e) { $("kbResults").innerHTML = `<div style="padding:12px;color:var(--error)">${esc(e.message)}</div>`; }
+  } catch (e) { $("kbResults").innerHTML = `<div style="padding:12px;color:var(--muted)">Knowledge Base search is not available on this instance. Use the Upload tab to submit a local installer.</div>`; }
   $("btnSearch").disabled = false;
 };
 $("kbSearch").onkeydown = e => { if (e.key === "Enter") $("btnSearch").click(); };
@@ -341,14 +341,24 @@ async function runPipeline(file, metaHint) {
   log("Upload complete. UUID: " + upload.uuid, "ok");
   setProgress(25);
 
-  // Metadata
-  setStatus("Preparing application...", "Step 1 of 2 — Upload");
+  // Metadata — try: server API → local PE headers via proxy → KB hint → filename
+  setStatus("Identifying application...", "Step 1 of 2 — Upload");
   log("Extracting metadata...", "info");
   let meta = metaHint || { name: file.name.replace(/\.[^.]+$/, ""), manufacturer: "Unknown", version: "1.0" };
+  let metaResolved = !!metaHint;
   try {
     const sm = await api("PUT", "api/apm/application/setupFile/getMetadata/" + upload.uuid);
-    if (sm && sm.applicationName) meta = { name: sm.applicationName, manufacturer: sm.applicationManufacturer || meta.manufacturer, version: sm.applicationVersion || meta.version };
-  } catch (e) { log("  Server extraction unavailable" + (metaHint ? " (using KB metadata)" : ""), "warn"); }
+    if (sm && sm.applicationName) { meta = { name: sm.applicationName, manufacturer: sm.applicationManufacturer || meta.manufacturer, version: sm.applicationVersion || meta.version }; metaResolved = true; }
+  } catch (e) {
+    log("  Server extraction unavailable", "warn");
+    if (!metaResolved) {
+      try {
+        const peForm = new FormData(); peForm.append("file", file, file.name);
+        const peRes = await fetch("/metadata", { method: "POST", body: peForm });
+        if (peRes.ok) { const pe = await peRes.json(); if (pe.name) { meta.name = pe.name; meta.manufacturer = pe.manufacturer || meta.manufacturer; meta.version = pe.version || meta.version; metaResolved = true; log("  PE header extraction OK", "ok"); } }
+      } catch (e2) { log("  PE extraction unavailable", "warn"); }
+    }
+  }
   log("App: " + meta.name + " | " + meta.manufacturer + " | v" + meta.version, "ok");
 
   // Command suggestion
