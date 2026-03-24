@@ -272,10 +272,13 @@ function New-JuribaAppRApplication {
         isAutomatedRepackaging = $false
     }
 
-    # Add install command line if we have one (uninstall left blank intentionally)
+    # Add install command line if we have one
     if ($installCmd) {
         $applicationInfo['cmdLine'] = $installCmd
     }
+    # Explicitly set uninstall to empty — without this, the server copies
+    # the install command to uninstall, which hangs the VM
+    $applicationInfo['uninstall'] = ""
 
     # uploadChunkModel — tells the server which uploaded chunks to use
     $uploadChunkModel = @{

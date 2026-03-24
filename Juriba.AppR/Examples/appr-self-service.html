@@ -451,6 +451,7 @@ async function getCommandSuggestion(upload, meta) {
 async function createApplication(upload, meta, installCmd) {
   const ai = { appVer: meta.version, manufacturer: meta.manufacturer, name: meta.name, pkgVer: "1.0", siteCode: "GLOBAL", isDiscovery: false, preReqIds: [], upgradeAppIds: [], existingAppId: -1, fullPreReqInfo: [], source: 0, sourceFileName: upload.fileName, sendUda: true, operatingSystemType: 0, isAutomatedRepackaging: false };
   if (installCmd) ai.cmdLine = installCmd;
+  ai.uninstall = "";
   const body = { applicationId: -1, applicationInfo: ai, preReqs: [], fullPreReqInfo: [], upgradeAppIds: [], setAsMainSource: true, uploadChunkModel: { dzIdentifier: upload.uuid, fileName: upload.fileName, expectedBytes: upload.fileSize, totalChunks: upload.totalChunks }, packageTypeMatrixModel: { from: 0, to: state.outputBitmask }, runImmediately: true, runEvAsAnotherUser: null };
   if (state.vmGroupId > 0) body.vmGroupId = state.vmGroupId;
   if (state.vmGroupForTestingId > 0) body.vmGroupForTestingId = state.vmGroupForTestingId;

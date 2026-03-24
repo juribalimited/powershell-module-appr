@@ -526,10 +526,13 @@ async function createApplication({ upload, metadata, defaults, installCmd }) {
         isAutomatedRepackaging: false,
     };
 
-    // Add install command if we have one (uninstall left blank intentionally)
+    // Add install command if we have one
     if (installCmd) {
         appInfo.cmdLine = installCmd;
     }
+    // Explicitly set uninstall to empty — without this, the server copies
+    // the install command to uninstall, which hangs the VM
+    appInfo.uninstall = "";
 
     const body = {
         applicationId: -1,

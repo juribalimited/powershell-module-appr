@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/BobKelly/powershell-module-appr/**)",
+      "Bash(pwsh -File Juriba.AppR/Examples/Test-UploadAndWatch.ps1 -InstanceUrl \"https://lokiqa.internal.juriba.com\" -APIKey \"ApNUNSf9E1cxvbURLSPsu/qffkaOD/3arCFZyPRaFaZxy3Ef58Rz8byPgYxhF7qzqav7IJTUJh7gTT1XLuXWiA==\" -SetupFilePath \"C:\\\\Users\\\\BobKelly\\\\OneDrive - Juriba\\\\Desktop\\\\7z2407-x64.exe\" -IntervalSeconds 60)",
+      "Bash(xargs grep:*)",
+      "Bash(xargs basename:*)",
+      "Bash(grep -r \"appId\\\\|applicationId\" --include=\"*.ps1\" Juriba.AppR/Public/Get*)",
+      "Bash(grep -h \"^function\" Juriba.AppR/Public/*.ps1)",
+      "Bash(pwsh -File Juriba.AppR/Examples/Test-UploadAndWatch.ps1 -InstanceUrl \"https://demo.appr.juriba.app\" -APIKey \"WeBP5sp+eQlDOLCAh68+Y7L48lBKq+mDX4KSDcUxzSH8vSoLZ6M+1eNXYNrC1VXQXXaxgsoSbHbuSnw2mz6jHw==\" -SetupFilePath \"C:\\\\Users\\\\BobKelly\\\\OneDrive - Juriba\\\\Desktop\\\\7z2407-x64.exe\" -IntervalSeconds 60)",
+      "Bash(pwsh -File Juriba.AppR/Examples/Test-UploadAndWatch.ps1 -InstanceUrl \"https://demo.appr.juriba.app\" -APIKey \"WeBP5sp+eQlDOLCAh68+Y7L48lBKq+mDX4KSDcUxzSH8vSoLZ6M+1eNXYNrC1VXQXXaxgsoSbHbuSnw2mz6jHw==\" -SetupFilePath \"C:\\\\Users\\\\BobKelly\\\\OneDrive - Juriba\\\\Desktop\\\\npp.8.6.9.Installer.x64.exe\" -IntervalSeconds 60)",
+      "Bash(pwsh -File Juriba.AppR/Examples/Test-UploadAndWatch.ps1 -InstanceUrl \"https://demo.appr.juriba.app\" -APIKey \"WeBP5sp+eQlDOLCAh68+Y7L48lBKq+mDX4KSDcUxzSH8vSoLZ6M+1eNXYNrC1VXQXXaxgsoSbHbuSnw2mz6jHw==\" -SetupFilePath \"C:\\\\Users\\\\BobKelly\\\\OneDrive - Juriba\\\\Desktop\\\\ChromeSetup.exe\" -IntervalSeconds 60)",
+      "Bash(pwsh -File Juriba.AppR/Examples/Test-UploadAndWatch.ps1 -InstanceUrl \"https://demo.appr.juriba.app\" -APIKey \"WeBP5sp+eQlDOLCAh68+Y7L48lBKq+mDX4KSDcUxzSH8vSoLZ6M+1eNXYNrC1VXQXXaxgsoSbHbuSnw2mz6jHw==\" -SetupFilePath \"C:\\\\Users\\\\BobKelly\\\\OneDrive - Juriba\\\\Desktop\\\\Skype-8.124.0.204.exe\" -IntervalSeconds 60)",
+      "Bash(pwsh -Command ':*)",
+      "Bash(pwsh -File Juriba.AppR/Examples/Test-UploadAndWatch.ps1 -InstanceUrl \"https://demo.appr.juriba.app\" -APIKey \"WeBP5sp+eQlDOLCAh68+Y7L48lBKq+mDX4KSDcUxzSH8vSoLZ6M+1eNXYNrC1VXQXXaxgsoSbHbuSnw2mz6jHw==\" -SetupFilePath \"C:\\\\Packages\\\\VisualStudioSetup.exe\" -IntervalSeconds 60)",
+      "Bash(find C:UsersBobKellypowershell-module-appr -type f -name *Search* -o -name *Knowledge*)",
+      "Bash(pwsh -File Juriba.AppR/Examples/Test-KBSearchAndPackage.ps1 -InstanceUrl \"https://demo.appr.juriba.app\" -APIKey \"WeBP5sp+eQlDOLCAh68+Y7L48lBKq+mDX4KSDcUxzSH8vSoLZ6M+1eNXYNrC1VXQXXaxgsoSbHbuSnw2mz6jHw==\" -SearchTerm \"7-Zip\" -IntervalSeconds 60)",
+      "Bash(pwsh -File Juriba.AppR/Examples/Test-WatchAndPublishIntune.ps1 -InstanceUrl \"https://demo.appr.juriba.app\" -APIKey \"WeBP5sp+eQlDOLCAh68+Y7L48lBKq+mDX4KSDcUxzSH8vSoLZ6M+1eNXYNrC1VXQXXaxgsoSbHbuSnw2mz6jHw==\" -DryRun -AllowAmber -TimeoutMinutes 1 -IntervalSeconds 30)",
+      "Bash(ls /c/Users/BobKelly/powershell-module-appr/Juriba.AppR/Examples/*.js)",
+      "Bash(ls /c/Users/BobKelly/powershell-module-appr/Juriba.AppR/Examples/*.mjs)",
+      "Bash(ls /c/Users/BobKelly/powershell-module-appr/*.js /c/Users/BobKelly/powershell-module-appr/*.mjs /c/Users/BobKelly/powershell-module-appr/*.ts)",
+      "Bash(node -e \"console.log\\(process.version\\)\")",
+      "Bash(pwsh -Command \"& ''C:\\\\Program Files\\\\nodejs\\\\node.exe'' -e ''console.log\\(process.version\\)''\")",
+      "Bash(pwsh -Command \"node -e ''console.log\\(process.version\\)''\")",
+      "Bash(ls /c/Users/BobKelly/powershell-module-appr/*.har)",
+      "Bash(ls \"/c/Users/BobKelly/powershell-module-appr/\"*har*)",
+      "Read(//c/Users/BobKelly/OneDrive - Juriba/Desktop/**)",
+      "Read(//c/Users/BobKelly/Desktop/**)",
+      "Read(//c/Users/BobKelly/OneDrive/**)",
+      "Bash(pwsh -Command \"Test-Path 'C:\\\\Users\\\\BobKelly\\\\OneDrive - Juriba\\\\Desktop\\\\7z2407-x64.exe'\")",
+      "Bash(pwsh -Command \"Get-ChildItem 'C:\\\\Users\\\\BobKelly\\\\OneDrive - Juriba\\\\Desktop\\\\*.exe' | Select-Object Name\")",
+      "Bash(pwsh -Command \"Get-ChildItem 'C:\\\\Packages\\\\*.exe','C:\\\\Packages\\\\*.msi' | Select-Object Name, Length\")",
+      "Bash(pwsh -File Juriba.AppR/Examples/Test-UploadAndWatch.ps1 -InstanceUrl \"https://jnj.appr.juriba.app\" -APIKey \"7cIP9C8HQRmMhdI7L370VkGQBr52hWqgCAEmfjDysbVAC5YKoScFf2WF42rpzDcE7ygShH3nWBMajhEeRsHKHg==\" -SetupFilePath \"C:\\\\Packages\\\\7z2407-x64.exe\" -IntervalSeconds 60)"
+    ]
+  }
+}
