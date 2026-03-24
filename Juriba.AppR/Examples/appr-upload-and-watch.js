@@ -78,25 +78,10 @@ async function main() {
     log(`  ✓ UUID: ${upload.uuid}`);
 
     // 5. Extract metadata and get install command suggestion
-    //    The command suggestion API returns metadata (name, manufacturer, version)
-    //    alongside the install commands. We use this as the primary metadata source
-    //    since the dedicated extraction endpoint can be unreliable via API key auth.
-    //    Server-side extraction is tried first as a preferred source.
     log("\n⑤ Extracting metadata & getting install command...");
-    let metadata = await extractMetadata(upload.uuid);
-    const { installCmd, suggestionMeta } = await getCommandSuggestion(upload, metadata);
-
-    // Use command suggestion metadata to fill in any gaps from extraction
-    if (suggestionMeta) {
-        if (metadata.name === path.parse(SETUP_FILE_PATH).name && suggestionMeta.name)
-            metadata.name = suggestionMeta.name;
-        if (metadata.manufacturer === "Unknown" && suggestionMeta.manufacturer)
-            metadata.manufacturer = suggestionMeta.manufacturer;
-        if (metadata.version === "1.0" && suggestionMeta.version)
-            metadata.version = suggestionMeta.version;
-    }
-
+    const metadata = await extractMetadata(upload.uuid);
     log(`  ✓ Name: ${metadata.name}, Manufacturer: ${metadata.manufacturer}, Version: ${metadata.version}`);
+    const { installCmd } = await getCommandSuggestion(upload, metadata);
     if (installCmd) {
         log(`  ✓ Install command: ${installCmd}`);
     } else {
@@ -391,26 +376,54 @@ async function combineChunks({ uuid, fileName, fileSize, totalChunks }) {
 // ── Step 4: Extract metadata ─────────────────────────────────────────────────
 
 /**
- * Calls the server-side metadata extraction API to detect the application
- * name, manufacturer, and version from the uploaded binary's PE headers.
- * Falls back to the file name if extraction fails.
+ * Extracts application metadata (name, manufacturer, version).
+ *
+ * Tries three sources in order:
+ *   1. Server-side extraction API (PE header analysis on the server)
+ *   2. Client-side PE headers via PowerShell (FileVersionInfo — Windows only)
+ *   3. File name as last resort
  */
 async function extractMetadata(uuid) {
+    const fallback = {
+        name:         path.parse(SETUP_FILE_PATH).name,
+        manufacturer: "Unknown",
+        version:      "1.0",
+    };
+
+    // Try server-side extraction first
     try {
         const meta = await api("PUT", `api/apm/application/setupFile/getMetadata/${uuid}`);
-        return {
-            name:         meta.applicationName         || path.parse(SETUP_FILE_PATH).name,
-            manufacturer: meta.applicationManufacturer  || "Unknown",
-            version:      meta.applicationVersion       || "1.0",
-        };
+        if (meta && meta.applicationName) {
+            return {
+                name:         meta.applicationName         || fallback.name,
+                manufacturer: meta.applicationManufacturer  || fallback.manufacturer,
+                version:      meta.applicationVersion       || fallback.version,
+            };
+        }
     } catch (err) {
-        log(`  ⚠ Metadata extraction failed: ${err.message}. Using file name as fallback.`);
-        return {
-            name:         path.parse(SETUP_FILE_PATH).name,
-            manufacturer: "Unknown",
-            version:      "1.0",
-        };
+        log(`  Server-side extraction failed: ${err.message}`);
     }
+
+    // Fall back to client-side PE headers via PowerShell (Windows)
+    try {
+        const { execSync } = require("child_process");
+        const psCmd = `[System.Diagnostics.FileVersionInfo]::GetVersionInfo('${SETUP_FILE_PATH.replace(/'/g, "''")}') | Select-Object ProductName,CompanyName,ProductVersion | ConvertTo-Json -Compress`;
+        const raw = execSync(`pwsh -NoProfile -Command "${psCmd}"`, { encoding: "utf8", timeout: 10000 });
+        const info = JSON.parse(raw.trim());
+        if (info.ProductName) {
+            log(`  Using client-side PE headers (FileVersionInfo)`);
+            return {
+                name:         (info.ProductName    || "").trim() || fallback.name,
+                manufacturer: (info.CompanyName    || "").trim() || fallback.manufacturer,
+                version:      (info.ProductVersion || "").trim() || fallback.version,
+            };
+        }
+    } catch (err) {
+        log(`  Client-side PE extraction failed: ${err.message}`);
+    }
+
+    log(`  Using file name as fallback`);
+    return fallback;
 }
 
 
