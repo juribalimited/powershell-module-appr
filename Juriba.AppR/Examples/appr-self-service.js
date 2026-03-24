@@ -64,6 +64,11 @@ const server = http.createServer((req, res) => {
         fs.createReadStream(HTML_FILE).pipe(res);
         return;
     }
+    // Serve the testing-visibility variant
+    if (req.url === "/testing" || req.url === "/testing.html") {
+        const testFile = path.join(__dirname, "appr-self-service-with-testing-visibility.html");
+        if (fs.existsSync(testFile)) { res.writeHead(200, { "Content-Type": "text/html" }); fs.createReadStream(testFile).pipe(res); return; }
+    }
 
     // Health check for the HTML to detect proxy availability
     if (req.url === "/health") {
