@@ -18,3 +18,9 @@ TestResults/
 # Temp files
 *.tmp
 *.bak
+
+# Working/debug scripts (use temp/ for scratch work)
+temp/
+
+# HAR files (may contain sensitive data)
+*.har

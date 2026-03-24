@@ -6,11 +6,10 @@
   with -RunImmediately, and watch the workflow status every 5 minutes until it reaches
   "ReadyForQualityReview" (Ready for QR).
 
-  New-JuribaAppRApplication now handles all the heavy lifting automatically:
+  New-JuribaAppRApplication handles the heavy lifting automatically:
     - Reads Default Settings for VM groups and output format bitmask
     - Calls server-side metadata extraction for name/manufacturer/version
-    - Calls command suggestion API for install/uninstall command lines
-    - Submits the exact same payload as the UI
+    - Command lines are determined server-side by the product (not sent in the payload)
 .PARAMETER InstanceUrl
   The base URL of the App Readiness instance.
 .PARAMETER APIKey
