@@ -127,6 +127,7 @@ node Juriba.AppR/Examples/appr-self-service.js</pre>
     <summary>Show details</summary>
     <div class="log" id="logArea" style="margin-top:8px"></div>
   </details>
+  <div id="progressAppLink" class="hidden" style="margin-top:12px;font-size:0.9em"><a id="progressAppLinkHref" href="#" target="_blank" style="color:var(--primary)">View in App Readiness</a></div>
 </div>
 
 <!-- Step 4: Result -->
@@ -328,6 +329,7 @@ function showProgress() {
   $("step-source").classList.add("hidden"); $("step-kb-version").classList.add("hidden");
   $("step-progress").classList.remove("hidden"); $("logArea").innerHTML = "";
   setProgress(0); $("progressFill").style.background = "var(--primary)";
+  $("progressAppLink").classList.add("hidden");
 }
 
 // ─── Core Pipeline ──────────────────────────────────────────────────────────
@@ -356,7 +358,7 @@ async function runPipeline(file, metaHint) {
   setProgress(35);
 
   // Create
-  setStatus("Creating application...", "Step 1 of 2 — Upload");
+  setStatus("Preparing to package...", "Step 1 of 2 — Preparing");
   log("Creating application...", "info");
   await createApplication(upload, meta, installCmd);
   log("Application submitted", "ok");
@@ -367,8 +369,12 @@ async function runPipeline(file, metaHint) {
   log("Application ID: " + appId, "ok");
   setProgress(40);
 
+  // Show link to app in AppR
+  $("progressAppLinkHref").href = state.instance + "/applications/fullStatus/" + appId;
+  $("progressAppLink").classList.remove("hidden");
+
   // Watch status
-  setStatus("Packaging " + meta.name + "...", "Step 2 of 2 — Packaging (this may take several minutes)");
+  setStatus("Packaging in progress...", "Step 2 of 2 — Packaging (this may take several minutes)");
   log("Watching packaging status...", "info");
   const finalStatus = await watchStatus(appId);
   setProgress(100);
@@ -453,6 +459,14 @@ async function waitForAppId(uuid) {
 }
 
 // ─── Watch status ───────────────────────────────────────────────────────────
+const friendlyStatus = {
+  "InPackaging": "Packaging in progress", "Downloading": "Downloading to VM",
+  "ReadyForQualityReview": "Ready for quality review", "QualityReview": "In quality review",
+  "ReadyForUat": "Ready for UAT", "Uat": "In UAT",
+  "ReadyForPublishing": "Ready for publishing", "Published": "Published",
+  "Failed": "Failed", "FailedPackaging": "Packaging failed", "FailedToPackage": "Packaging failed",
+  "Cancelled": "Cancelled",
+};
 async function watchStatus(appId) {
   const ok = new Set(["ReadyForQualityReview","QualityReview","ReadyForUat","Uat","ReadyForPublishing","Published"]);
   const fail = new Set(["Failed","FailedPackaging","FailedToPackage","Cancelled"]);
@@ -461,9 +475,10 @@ async function watchStatus(appId) {
     try {
       const d = await api("GET", "api/apm/application/" + appId);
       const st = d?.ext?.status || "Unknown", pct = d?.ext?.progressPercent || 0;
-      if (st + pct !== prev) { log("  " + st + " (" + pct + "%)", ok.has(st) ? "ok" : fail.has(st) ? "err" : "info"); prev = st + pct; }
+      const friendly = friendlyStatus[st] || st;
+      if (st + pct !== prev) { log("  " + friendly + " (" + pct + "%)", ok.has(st) ? "ok" : fail.has(st) ? "err" : "info"); prev = st + pct; }
       setProgress(40 + pct * 0.6);
-      setStatus(st + " (" + pct + "%)", "Step 2 of 2 — Packaging");
+      setStatus(friendly + " (" + pct + "%)", "Step 2 of 2 — Packaging");
       if (ok.has(st) || fail.has(st)) return st;
     } catch (e) { log("  Poll error: " + e.message, "warn"); }
     await sleep(30000);
