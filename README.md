@@ -1,24 +1,30 @@
 # Juriba App Readiness PowerShell Module
 
-PowerShell module to interact with [Juriba App Readiness](https://www.juriba.com) (AppR). Provides cmdlets for managing applications, packaging, smoke testing, quality review, and publishing to distribution systems such as Microsoft Intune and MECM.
+PowerShell module and automation examples for [Juriba App Readiness](https://www.juriba.com) (AppR). Provides 39 cmdlets covering application lifecycle management, plus JavaScript and HTML examples for end-user self-service packaging.
 
-## Available Modules
+## Compatibility
 
-| Module | Description |
-|--------|-------------|
-| Juriba.AppR | Core App Readiness module with 36 cmdlets covering application lifecycle management |
+Tested against App Readiness v5.2 and v6.0 RC.
+
+| Area | v5.2 | v6.0 RC | Notes |
+|------|:----:|:-------:|-------|
+| Connection & configuration | OK | OK | |
+| Application management | OK | OK | |
+| Upload & create | OK | OK | Auto-detects wrapping vs repackaging |
+| Knowledge Base search | OK | **Limited** | v6.0 RC: KB search endpoint returns 500 (server-side regression) |
+| Command suggestion | OK | OK | Juriba KB, Programmatic, and AI sources |
+| Packages & testing | OK | OK | |
+| Publishing (Intune/MECM) | OK | OK | |
+| Publishing (Generic) | OK | **Limited** | v6.0 RC: `Invoke-JuribaAppRPublishGeneric` endpoint removed (404) |
+| Generic Integration (read) | OK | OK | |
+
+> **v6.0 RC known issues:** KB search and generic publishing are server-side regressions in the release candidate. All other cmdlets work on both versions. These issues are expected to be resolved in the v6.0 GA release.
 
 ## Installation
 
-### PowerShell Gallery (coming soon)
-
-```powershell
-Install-Module Juriba.AppR
-```
-
 ### Manual Installation
 
-Clone this repository and import the module directly:
+Clone this repository and import the module:
 
 ```powershell
 git clone https://github.com/juribalimited/powershell-module-appr.git
@@ -28,125 +34,79 @@ Import-Module ./powershell-module-appr/Juriba.AppR/Juriba.AppR.psd1
 ## Requirements
 
 - PowerShell 7.0 or later (PowerShell Core)
-- A Juriba App Readiness instance
+- A Juriba App Readiness instance (v5.2+)
 - An API key (generated from your user profile in the App Readiness web interface)
 
-## Configuration
-
-### Instance URL
-
-Your App Readiness instance URL is the address you use to access the web interface, for example `https://appr.yourcompany.com`.
-
-### API Key
-
-An API key can be generated from your user profile within the App Readiness web interface. It is recommended to store your API key securely using the [SecretManagement](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.secretmanagement/) module:
+## Quick Start
 
 ```powershell
-# Store your API key securely (one time)
-Install-Module Microsoft.PowerShell.SecretManagement
-Install-Module Microsoft.PowerShell.SecretStore
-Set-Secret -Name "AppR-APIKey" -Secret "your-api-key-here"
+Import-Module ./Juriba.AppR/Juriba.AppR.psd1
 
-# Retrieve and use in scripts
-$apiKey = Get-Secret -Name "AppR-APIKey" -AsPlainText
-Connect-JuribaAppR -Instance "https://appr.example.com" -APIKey $apiKey
-```
-
-## Getting Started
-
-### Connect to App Readiness
-
-```powershell
-# Option 1: Connect once, use for all subsequent calls
+# Connect
 Connect-JuribaAppR -Instance "https://appr.example.com" -APIKey "your-api-key"
 
-# Option 2: Pass credentials explicitly to each cmdlet
-Get-JuribaAppRApplication -Instance "https://appr.example.com" -APIKey "your-api-key"
+# Upload and package an application
+$upload = Send-JuribaAppRSetupFile -FilePath "C:\Installers\7z2407-x64.exe"
+$app = New-JuribaAppRApplication -Uuid $upload.Uuid -FileName $upload.FileName `
+    -FileSize $upload.FileSize -TotalChunks $upload.TotalChunks -RunImmediately
+
+# Watch until packaging completes
+$result = Watch-JuribaAppRApplicationStatus -AppId $app.AppId -IntervalSeconds 60
 ```
 
-### List Applications
+## API Key Security
+
+It is recommended to store your API key securely using [SecretManagement](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.secretmanagement/):
 
 ```powershell
-# Get all applications
-Get-JuribaAppRApplicationList -AllUsers
+# One-time setup
+Install-Module Microsoft.PowerShell.SecretManagement, Microsoft.PowerShell.SecretStore
+Set-Secret -Name "AppR-APIKey" -Secret "your-api-key-here"
 
-# Search for a specific application
-Get-JuribaAppRApplicationList -Query "Chrome"
-
-# Get full details for an application
-Get-JuribaAppRApplication -AppId 42
+# Use in scripts
+Connect-JuribaAppR -Instance "https://appr.example.com" -SecretName "AppR-APIKey"
 ```
 
-### Check Application Status
+The module also supports `-APIKey` (plain text) and `-SecureAPIKey` (SecureString) for backward compatibility and interactive use.
 
-```powershell
-# Get the full workflow tracker (packaging, testing, QR, publishing)
-Get-JuribaAppRApplicationStatus -AppId 42
+## Examples
 
-# Get event history
-Get-JuribaAppRApplicationEvent -AppId 42
+The [Examples](Juriba.AppR/Examples/) folder contains ready-to-run automation scripts:
 
-# Get package information
-Get-JuribaAppRApplicationPackage -AppId 42
+### PowerShell
+
+| Script | Description |
+|--------|-------------|
+| `Test-UploadAndWatch.ps1` | Upload a local installer, create the app, watch packaging to completion |
+| `Test-KBSearchAndPackage.ps1` | Search the Juriba KB, pick a version, download, upload, and package |
+| `Test-WatchAndPublishIntune.ps1` | Poll for apps with passed smoke tests, auto-publish to Intune |
+
+### JavaScript (Node.js 18+)
+
+| Script | Description |
+|--------|-------------|
+| `appr-upload-and-watch.js` | Single-file upload-and-watch script, no external dependencies |
+
+Usage:
+```
+set APPR_API_KEY=your-key
+set APPR_INSTANCE=https://appr.example.com
+node appr-upload-and-watch.js "C:\Installers\setup.exe"
 ```
 
-### Create an Application
+### HTML Self-Service Portal
 
-```powershell
-# Create a new application from an uploaded file
-$result = New-JuribaAppRApplication -UploadId "upload-guid-here"
+| File | Description |
+|------|-------------|
+| `appr-self-service.html` | Browser-based portal for KB search or local file upload |
+| `appr-self-service-with-testing-visibility.html` | Same, with live smoke test monitoring |
+| `appr-self-service.js` | Local proxy server (required by the HTML portals) |
 
-# Check creation progress
-Get-JuribaAppRApplicationCreationState -UploadId "upload-guid-here"
-
-# Assign an owner
-Set-JuribaAppRApplicationOwner -AppId 42 -UserId 5
-
-# Set a custom command line
-Set-JuribaAppRApplicationCommandLine -AppId 42 -CommandLine "/S /v/qn"
+Usage:
 ```
-
-### Smoke Testing
-
-```powershell
-# List available VM pools
-Get-JuribaAppRVMGroup
-
-# Start a smoke test
-Start-JuribaAppRSmokeTest -AppId 42 -PackageType Msi
-
-# Check test results
-Get-JuribaAppRTestResult -AppId 42
-
-# Get testing statistics
-Get-JuribaAppRTestStats -AppId 42
+node Juriba.AppR/Examples/appr-self-service.js
 ```
-
-### Publishing
-
-```powershell
-# See available integration connectors
-Get-JuribaAppRIntegrationConnector
-
-# Publish to Intune
-Invoke-JuribaAppRPublishIntune -Body @{
-    applicationId = 42
-    packageType   = "IntuneWin"
-}
-
-# Publish to MECM
-Invoke-JuribaAppRPublishMECM -Body @{
-    applicationId = 42
-    packageType   = "Msi"
-}
-```
-
-### Search Juriba Knowledge Base
-
-```powershell
-# Search for known applications
-Search-JuribaAppRKnowledgeBase -Search "Firefox"
-```
+Then open the URL shown in the console. The proxy server handles API routing and CORS.
 
 ## Cmdlet Reference
 
@@ -156,84 +116,128 @@ Search-JuribaAppRKnowledgeBase -Search "Firefox"
 |--------|-------------|
 | `Connect-JuribaAppR` | Establish a persistent connection to an App Readiness instance |
 | `Disconnect-JuribaAppR` | Clear the stored connection |
-| `Get-JuribaAppRAboutInfo` | Get instance version and configuration information |
+| `Set-JuribaAppRAPIKey` | Store an API key in a SecretManagement vault |
+
+### Instance Configuration
+
+| Cmdlet | Description |
+|--------|-------------|
+| `Get-JuribaAppRAboutInfo` | Get instance version and configuration |
+| `Get-JuribaAppRDefaultSettings` | Get default settings (VM groups, output formats, automation flags) |
+| `Get-JuribaAppRUser` | Get user information (current user, by ID, or all users) |
+| `Get-JuribaAppRVMGroup` | List available VM groups for packaging and testing |
 
 ### Applications
 
 | Cmdlet | Description |
 |--------|-------------|
-| `Get-JuribaAppRApplication` | Get application details by ID, or list all applications |
-| `Get-JuribaAppRApplicationList` | Search and filter applications |
+| `Get-JuribaAppRApplication` | Get application details by ID (full or basic) |
+| `Get-JuribaAppRApplicationList` | Search and filter applications (by query, user, or all) |
 | `Get-JuribaAppRApplicationStatus` | Get the full workflow tracker for an application |
-| `Get-JuribaAppRApplicationPackage` | Get package information for an application |
-| `Get-JuribaAppRApplicationPackageDetail` | Get detailed package info by type (v1 API) |
 | `Get-JuribaAppRApplicationEvent` | Get event history for an application |
-| `New-JuribaAppRApplication` | Create a new application |
-| `Get-JuribaAppRApplicationCreationState` | Check async application creation progress |
-| `Set-JuribaAppRApplication` | Update application properties |
+| `New-JuribaAppRApplication` | Create a new application from an uploaded file |
+| `Get-JuribaAppRApplicationCreationState` | Check async creation progress |
+| `Set-JuribaAppRApplication` | Update application properties (name, manufacturer, etc.) |
 | `Set-JuribaAppRApplicationOwner` | Assign an owner to an application |
-| `Set-JuribaAppRApplicationCommandLine` | Set a custom command line |
+| `Set-JuribaAppRApplicationCommandLine` | Set a custom install command line |
 | `Remove-JuribaAppRApplication` | Delete an application |
+| `Watch-JuribaAppRApplicationCreation` | Poll until creation resolves to an application ID |
+| `Watch-JuribaAppRApplicationStatus` | Poll until packaging reaches a terminal state |
 
-### Users
+### Upload
 
 | Cmdlet | Description |
 |--------|-------------|
-| `Get-JuribaAppRUser` | Get user information (current user, by ID, or all users) |
+| `Send-JuribaAppRSetupFile` | Upload an installer using chunked upload |
+
+### Knowledge Base
+
+| Cmdlet | Description | v6 Status |
+|--------|-------------|-----------|
+| `Search-JuribaAppRKnowledgeBase` | Search the Juriba KB by name, or get versions by ID | v6: server 500 |
+| `Get-JuribaAppRCommandSuggestion` | Get install command suggestions (KB, Programmatic, AI) | OK |
+
+### Packages
+
+| Cmdlet | Description |
+|--------|-------------|
+| `Get-JuribaAppRApplicationPackage` | Get all packages or by type for an application |
+| `Get-JuribaAppRApplicationPackageDetail` | Get detailed package info (v1 API) |
 
 ### Testing
 
 | Cmdlet | Description |
 |--------|-------------|
-| `Get-JuribaAppRVMGroup` | List available VM pools for testing |
 | `Get-JuribaAppRTestApplication` | Get applications available for testing |
-| `Start-JuribaAppRSmokeTest` | Initiate a smoke test |
+| `Start-JuribaAppRSmokeTest` | Initiate a smoke test for a package type |
 | `Stop-JuribaAppRSmokeTest` | Cancel a running smoke test |
-| `Get-JuribaAppRTestResult` | Get smoke test results |
+| `Get-JuribaAppRTestResult` | Get smoke test results with pass/fail details |
 | `Get-JuribaAppRTestStats` | Get aggregate testing statistics |
 
 ### Quality Review
 
 | Cmdlet | Description |
 |--------|-------------|
-| `Get-JuribaAppRQualityReview` | Get QR results, optionally with screenshots |
+| `Get-JuribaAppRQualityReview` | Get QR checklist results and screenshots |
 
 ### Publishing
 
-| Cmdlet | Description |
-|--------|-------------|
-| `Get-JuribaAppRIntegrationConnector` | List configured integration connectors |
-| `Get-JuribaAppRPublishingProperty` | Get publishing configuration properties |
-| `Invoke-JuribaAppRPublishIntune` | Publish a package to Microsoft Intune |
-| `Invoke-JuribaAppRPublishMECM` | Publish a package to MECM |
-| `Invoke-JuribaAppRPublishGeneric` | Publish a package to a generic integration |
-
-### Knowledge Base
-
-| Cmdlet | Description |
-|--------|-------------|
-| `Search-JuribaAppRKnowledgeBase` | Search the Juriba KB for known applications |
+| Cmdlet | Description | v6 Status |
+|--------|-------------|-----------|
+| `Get-JuribaAppRIntegrationConnector` | List configured integration connectors | OK |
+| `Get-JuribaAppRPublishingProperty` | Get publishing configuration properties | OK |
+| `Invoke-JuribaAppRPublishIntune` | Publish a package to Microsoft Intune | OK |
+| `Invoke-JuribaAppRPublishMECM` | Publish a package to MECM/SCCM | OK |
+| `Invoke-JuribaAppRPublishGeneric` | Publish to a generic integration | v6: endpoint 404 |
 
 ### Generic Integration (v1 API)
 
+These cmdlets support custom third-party integrations built on the Generic Integration framework.
+
 | Cmdlet | Description |
 |--------|-------------|
-| `Get-JuribaAppRGenericIntegration` | List generic integrations |
+| `Get-JuribaAppRGenericIntegration` | List configured generic integrations |
 | `Get-JuribaAppRGenericIntegrationPublishing` | Get publishing records for an integration |
+| `Get-JuribaAppRGenericIntegrationProperty` | Get properties for a specific publishing |
 | `Get-JuribaAppRGenericIntegrationPrerequisite` | Get prerequisites for a publishing |
-| `Get-JuribaAppRGenericIntegrationProperty` | Get properties for a publishing |
-| `Get-JuribaAppRGenericIntegrationSource` | Download the source package |
+| `Get-JuribaAppRGenericIntegrationSource` | Download the package source file |
 | `Add-JuribaAppRGenericIntegrationLog` | Add a log entry for a publishing |
 | `Update-JuribaAppRGenericIntegrationPublishingState` | Update publishing state (Succeeded/Failed) |
 
-## Use Case Coverage
+## Key Behaviors
 
-This module addresses the key customer automation scenarios identified in the API Use Cases document:
+### Wrapping vs Repackaging
+
+The module automatically detects whether the instance requires VM-based repackaging or direct wrapping based on the configured output formats:
+
+- **MSI, MSIX, MSIX App Attach** in output formats: triggers VM-based repackaging (`from=0`, uses configured VM group)
+- **IntuneWin, PSADT only** in output formats: triggers direct wrapping (`from=4`, `vmGroupId=-1`, no VM needed)
+
+### Command Suggestion Priority
+
+When creating an application, install commands are selected with this priority:
+
+1. **Juriba Knowledge Base** (source 3) — curated commands from the KB
+2. **Programmatic** (source 1) — detected from installer type/flags
+3. **AI** (source 2) — AI-generated suggestions
+
+Within each source, previously successful commands (by `lastResult` and `successRate`) are preferred.
+
+### Metadata Extraction
+
+Application name, manufacturer, and version are resolved in order:
+
+1. Server-side PE header extraction API
+2. Client-side `FileVersionInfo` (PowerShell) or proxy-based extraction (HTML portal)
+3. Knowledge Base metadata (when using the KB workflow)
+4. Filename fallback
+
+## Use Case Coverage
 
 | Priority | Use Case | Cmdlets |
 |----------|----------|---------|
 | Need | Get list of applications and package status | `Get-JuribaAppRApplicationList`, `Get-JuribaAppRApplicationPackage` |
-| Need | Add an application with uploaded file | `New-JuribaAppRApplication` |
+| Need | Add an application with uploaded file | `Send-JuribaAppRSetupFile`, `New-JuribaAppRApplication` |
 | Need | Assign to requester | `Set-JuribaAppRApplicationOwner` |
 | Need | Specify override name | `Set-JuribaAppRApplication` |
 | Need | Request a smoke test | `Start-JuribaAppRSmokeTest` |
@@ -246,11 +250,7 @@ This module addresses the key customer automation scenarios identified in the AP
 | Need | Pull back QR/UAT results | `Get-JuribaAppRQualityReview` |
 | Need | Pull back assignment info | `Get-JuribaAppRApplication` |
 | Want | Specify override command line | `Set-JuribaAppRApplicationCommandLine` |
-| When Possible | Search Juriba KB | `Search-JuribaAppRKnowledgeBase` |
-
-## Examples
-
-See the [Examples](Examples/) folder for complete workflow scripts.
+| Want | Search Juriba KB | `Search-JuribaAppRKnowledgeBase` |
 
 ## Contributing
 
