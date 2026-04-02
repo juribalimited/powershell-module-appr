@@ -44,7 +44,7 @@
   Defaults to a temp directory.
 
 .PARAMETER PackageTypes
-  Comma-separated package types to download. Default: "MsixAppAttach".
+  Comma-separated package types to download. Default: "AppAtach".
   Other options: "Msix", "Msi", "AppV", "IntuneWin", "Psadt".
 
 .PARAMETER Limit
@@ -91,7 +91,7 @@ param (
     [string]$StagingPath,
 
     [Parameter(Mandatory = $false)]
-    [string]$PackageTypes = "MsixAppAttach",
+    [string]$PackageTypes = "AppAtach",
 
     [Parameter(Mandatory = $false)]
     [int]$Limit = 50
@@ -101,7 +101,7 @@ $ErrorActionPreference = 'Stop'
 
 # ── Import module ─────────────────────────────────────────────────────────────
 
-$modulePath = Join-Path $PSScriptRoot '..' 'Juriba.AppR.psd1'
+$modulePath = Join-Path (Join-Path $PSScriptRoot '..') 'Juriba.AppR.psd1'
 Import-Module $modulePath -Force
 
 
@@ -120,7 +120,7 @@ else {
 
 if (-not $IntegrationId) {
     Write-Host "`nAvailable Generic Integrations:" -ForegroundColor Cyan
-    $integrations = Get-JuribaAppRGenericIntegration
+    $integrations = @(Get-JuribaAppRGenericIntegration)
     if (-not $integrations -or $integrations.Count -eq 0) {
         Write-Error "No Generic Integrations found. Configure one in Admin > Integrations."
     }
@@ -144,8 +144,8 @@ Write-Host "`nUsing Generic Integration ID: $IntegrationId" -ForegroundColor Cya
 # ── List published packages ───────────────────────────────────────────────────
 
 Write-Host "Querying published $PackageTypes packages (limit: $Limit)..." -ForegroundColor Cyan
-$publishings = Get-JuribaAppRGenericIntegrationPublishing `
-    -IntegrationId $IntegrationId -Limit $Limit -PackageTypes $PackageTypes
+$publishings = @(Get-JuribaAppRGenericIntegrationPublishing `
+    -IntegrationId $IntegrationId -Limit $Limit -PackageTypes $PackageTypes)
 
 if (-not $publishings -or $publishings.Count -eq 0) {
     Write-Host "No published $PackageTypes packages found in integration $IntegrationId." -ForegroundColor Yellow
@@ -179,15 +179,19 @@ if (-not (Test-Path $SMBSharePath)) {
 $successCount = 0
 $failCount    = 0
 
-foreach ($pub in $publishings) {
-    $pubId   = $pub.publishingId
-    $appName = $pub.applicationName
-    $pkgType = $pub.packageType
-    $version = $pub.applicationVersion
-
-    Write-Host "`n─── [$pubId] $appName v$version ($pkgType) ───" -ForegroundColor Magenta
+foreach ($pubId in $publishings) {
+    Write-Host "`n─── Publishing ID: $pubId ───" -ForegroundColor Magenta
 
     try {
+        # Get publishing properties for display
+        $props = Get-JuribaAppRGenericIntegrationProperty `
+            -IntegrationId $IntegrationId -PublishingId $pubId
+        foreach ($p in $props) {
+            if ($p.propertyName -and $p.propertyName -ne 'ApplicationPackageSourceUrl' -and $p.propertyName -ne 'ApplicationPackageDetailsUrl') {
+                Write-Host "  $($p.propertyName): $($p.propertyValue)" -ForegroundColor DarkGray
+            }
+        }
+
         # Download the package source to the staging directory
         Write-Host "  Downloading..." -ForegroundColor Cyan
         $downloadedFile = Get-JuribaAppRGenericIntegrationSource `

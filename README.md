@@ -15,10 +15,10 @@ Tested against App Readiness v5.2 and v6.0 RC.
 | Command suggestion | OK | OK | Juriba KB, Programmatic, and AI sources |
 | Packages & testing | OK | OK | |
 | Publishing (Intune/MECM) | OK | OK | |
-| Publishing (Generic) | OK | **Limited** | v6.0 RC: `Invoke-JuribaAppRPublishGeneric` endpoint removed (404) |
+| Publishing (Generic) | OK | OK | v6.0 RC requires additional fields; cmdlet updated to auto-populate |
 | Generic Integration (read) | OK | OK | |
 
-> **v6.0 RC known issues:** KB search and generic publishing are server-side regressions in the release candidate. All other cmdlets work on both versions. These issues are expected to be resolved in the v6.0 GA release.
+> **v6.0 RC known issues:** KB search is a server-side regression in the release candidate (returns 500). Generic publishing required a body format change which has been addressed in the updated `Invoke-JuribaAppRPublishGeneric` cmdlet. All other cmdlets work on both versions.
 
 ## Installation
 
@@ -80,6 +80,7 @@ The [Examples](Juriba.AppR/Examples/) folder contains ready-to-run automation sc
 | `Test-UploadAndWatch.ps1` | Upload a local installer, create the app, watch packaging to completion |
 | `Test-KBSearchAndPackage.ps1` | Search the Juriba KB, pick a version, download, upload, and package |
 | `Test-WatchAndPublishIntune.ps1` | Poll for apps with passed smoke tests, auto-publish to Intune |
+| `Export-MSIXAppAttachToShare.ps1` | Download MSIX App Attach packages from a generic integration to an SMB share |
 
 ### JavaScript (Node.js 18+)
 
@@ -188,7 +189,7 @@ Then open the URL shown in the console. The proxy server handles API routing and
 | `Get-JuribaAppRPublishingProperty` | Get publishing configuration properties | OK |
 | `Invoke-JuribaAppRPublishIntune` | Publish a package to Microsoft Intune | OK |
 | `Invoke-JuribaAppRPublishMECM` | Publish a package to MECM/SCCM | OK |
-| `Invoke-JuribaAppRPublishGeneric` | Publish to a generic integration | v6: endpoint 404 |
+| `Invoke-JuribaAppRPublishGeneric` | Publish to a generic integration (auto-populates required fields) | OK |
 
 ### Generic Integration (v1 API)
 

@@ -11,9 +11,9 @@
     - Calls server-side metadata extraction for name/manufacturer/version
     - Command lines are determined server-side by the product (not sent in the payload)
 .PARAMETER InstanceUrl
-  The base URL of the App Readiness instance.
+  The base URL of the App Readiness instance. Not required if already connected via Connect-JuribaAppR.
 .PARAMETER APIKey
-  Your API key for authentication.
+  Your API key for authentication. Not required if already connected via Connect-JuribaAppR.
 .PARAMETER SetupFilePath
   Path to the installer to upload (EXE, MSI, etc.).
 .PARAMETER IntervalSeconds
@@ -25,11 +25,12 @@
       -APIKey "your-key" -SetupFilePath "C:\Installers\7z2407-x64.exe"
 #>
 
+[CmdletBinding()]
 param (
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory = $false)]
     [string]$InstanceUrl,
 
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory = $false)]
     [string]$APIKey,
 
     [Parameter(Mandatory = $true)]
@@ -43,18 +44,26 @@ param (
 $ErrorActionPreference = 'Stop'
 
 # Import the module
-$modulePath = Join-Path $PSScriptRoot '..' 'Juriba.AppR.psd1'
+$modulePath = Join-Path (Join-Path $PSScriptRoot '..') 'Juriba.AppR.psd1'
 Import-Module $modulePath -Force
 Write-Host "Module imported" -ForegroundColor Cyan
 
-# 1. CONNECT
+# 1. CONNECT (skip if already connected)
 Write-Host "`n=== Step 1: Connect ===" -ForegroundColor Magenta
-Connect-JuribaAppR -Instance $InstanceUrl -APIKey $APIKey
-Write-Host "Connected to $InstanceUrl"
+if ($global:appRConnection) {
+    Write-Host "Already connected to $($global:appRConnection.Instance)" -ForegroundColor Green
+}
+elseif ($InstanceUrl -and $APIKey) {
+    Connect-JuribaAppR -Instance $InstanceUrl -APIKey $APIKey
+    Write-Host "Connected to $InstanceUrl"
+}
+else {
+    Write-Error "Not connected. Either run Connect-JuribaAppR first, or pass -InstanceUrl and -APIKey."
+}
 
 # 2. UPLOAD
 Write-Host "`n=== Step 2: Upload ===" -ForegroundColor Magenta
-$upload = Send-JuribaAppRSetupFile -FilePath $SetupFilePath -Verbose
+$upload = Send-JuribaAppRSetupFile -FilePath $SetupFilePath -Verbose:$VerbosePreference
 Write-Host "Uploaded: $($upload.FileName) ($([Math]::Round($upload.FileSize / 1MB, 2)) MB)"
 Write-Host "  UUID:         $($upload.Uuid)"
 Write-Host "  ProductName:  $($upload.ProductName)"
@@ -83,7 +92,7 @@ if ($upload.ProductName)    { $splatCreate['Name']         = $upload.ProductName
 if ($upload.CompanyName)    { $splatCreate['Manufacturer'] = $upload.CompanyName }
 if ($upload.ProductVersion) { $splatCreate['Version']      = $upload.ProductVersion }
 
-$app = New-JuribaAppRApplication @splatCreate -Verbose
+$app = New-JuribaAppRApplication @splatCreate -Verbose:$VerbosePreference
 Write-Host "Application created. Response:"
 $app | Format-List
 
@@ -179,5 +188,7 @@ if ($result.Status -match 'Fail|Cancel') {
     }
 }
 
-# Disconnect
-Disconnect-JuribaAppR
+# Disconnect only if we connected in this script
+if ($InstanceUrl -and $APIKey) {
+    Disconnect-JuribaAppR
+}

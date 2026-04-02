@@ -59,7 +59,7 @@ param (
 $ErrorActionPreference = 'Stop'
 
 # Import the module
-$modulePath = Join-Path $PSScriptRoot '..' 'Juriba.AppR.psd1'
+$modulePath = Join-Path (Join-Path $PSScriptRoot '..') 'Juriba.AppR.psd1'
 Import-Module $modulePath -Force
 Write-Host "Module imported" -ForegroundColor Cyan
 

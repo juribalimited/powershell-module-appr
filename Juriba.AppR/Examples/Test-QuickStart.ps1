@@ -35,7 +35,7 @@ param (
 $ErrorActionPreference = 'Stop'
 
 # --- Locate and import the module ---
-$modulePath = Join-Path $PSScriptRoot '..' 'Juriba.AppR.psd1'
+$modulePath = Join-Path (Join-Path $PSScriptRoot '..') 'Juriba.AppR.psd1'
 if (-not (Test-Path $modulePath)) {
     Write-Error "Cannot find Juriba.AppR.psd1 at $modulePath. Run this script from the Examples folder."
 }
