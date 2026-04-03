@@ -4,21 +4,7 @@ PowerShell module and automation examples for [Juriba App Readiness](https://www
 
 ## Compatibility
 
-Tested against App Readiness v5.2 and v6.0 RC.
-
-| Area | v5.2 | v6.0 RC | Notes |
-|------|:----:|:-------:|-------|
-| Connection & configuration | OK | OK | |
-| Application management | OK | OK | |
-| Upload & create | OK | OK | Auto-detects wrapping vs repackaging |
-| Knowledge Base search | OK | **Limited** | v6.0 RC: KB search endpoint returns 500 (server-side regression) |
-| Command suggestion | OK | OK | Juriba KB, Programmatic, and AI sources |
-| Packages & testing | OK | OK | |
-| Publishing (Intune/MECM) | OK | OK | |
-| Publishing (Generic) | OK | OK | v6.0 RC requires additional fields; cmdlet updated to auto-populate |
-| Generic Integration (read) | OK | OK | |
-
-> **v6.0 RC known issues:** KB search is a server-side regression in the release candidate (returns 500). Generic publishing required a body format change which has been addressed in the updated `Invoke-JuribaAppRPublishGeneric` cmdlet. All other cmdlets work on both versions.
+Tested against App Readiness v5.2 and v6.0 RC. All cmdlets work on both versions.
 
 ## Installation
 
@@ -155,7 +141,7 @@ Then open the URL shown in the console. The proxy server handles API routing and
 
 | Cmdlet | Description | v6 Status |
 |--------|-------------|-----------|
-| `Search-JuribaAppRKnowledgeBase` | Search the Juriba KB by name, or get versions by ID | v6: server 500 |
+| `Search-JuribaAppRKnowledgeBase` | Search the Juriba KB by name, or get versions by ID (auto-fallback to UDA API) | OK |
 | `Get-JuribaAppRCommandSuggestion` | Get install command suggestions (KB, Programmatic, AI) | OK |
 
 ### Packages
