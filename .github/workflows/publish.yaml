@@ -1,0 +1,19 @@
+name: Publish
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'Juriba.AppR/**'
+
+jobs:
+  publishpsgallery:
+    name: 'PowerShell Gallery'
+    runs-on: ubuntu-latest
+    env:
+      NUGET_API_KEY: ${{ secrets.NUGETAPIKEY }}
+    steps:
+      - uses: actions/checkout@v6
+      - shell: pwsh
+        run: Publish-Module -Path .\Juriba.AppR -NuGetApiKey $env:NUGET_API_KEY -Verbose

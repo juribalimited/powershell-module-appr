@@ -8,9 +8,23 @@ Tested against App Readiness v5.2 and v6.0 RC. All cmdlets work on both versions
 
 ## Installation
 
+### PowerShell Gallery
+
+The module is published on [PowerShell Gallery](https://www.powershellgallery.com/packages/Juriba.AppR/). Installing the module is as simple as:
+
+```powershell
+Install-Module Juriba.AppR
+```
+
+If you are updating from a previous version of the module simply run:
+
+```powershell
+Update-Module Juriba.AppR
+```
+
 ### Manual Installation
 
-Clone this repository and import the module:
+Alternatively, clone this repository and import the module directly:
 
 ```powershell
 git clone https://github.com/juribalimited/powershell-module-appr.git
