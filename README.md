@@ -22,15 +22,6 @@ If you are updating from a previous version of the module simply run:
 Update-Module Juriba.AppR
 ```
 
-### Manual Installation
-
-Alternatively, clone this repository and import the module directly:
-
-```powershell
-git clone https://github.com/juribalimited/powershell-module-appr.git
-Import-Module ./powershell-module-appr/Juriba.AppR/Juriba.AppR.psd1
-```
-
 ## Requirements
 
 - PowerShell 7.0 or later (PowerShell Core)
@@ -40,7 +31,7 @@ Import-Module ./powershell-module-appr/Juriba.AppR/Juriba.AppR.psd1
 ## Quick Start
 
 ```powershell
-Import-Module ./Juriba.AppR/Juriba.AppR.psd1
+Install-Module Juriba.AppR
 
 # Connect
 Connect-JuribaAppR -Instance "https://appr.example.com" -APIKey "your-api-key"
