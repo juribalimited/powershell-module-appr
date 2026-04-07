@@ -127,7 +127,7 @@
             IconUri    = 'https://raw.githubusercontent.com/juribalimited/powershell-module-appr/main/resources/juriba_logo.jpeg'
 
             # ReleaseNotes of this module
-            ReleaseNotes = 'Initial release - Wave 1 cmdlets covering application management, smoke testing, publishing, and generic integration.'
+            ReleaseNotes = 'v0.1.1 - Add CI/CD pipeline and PowerShell Gallery publishing.'
 
         } # End of PSData hashtable
 
