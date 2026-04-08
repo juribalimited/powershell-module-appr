@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Publishing - Juriba.AppR Documentation</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav id="sidebar"></nav>
+    <main>
+        <div class="breadcrumb"><a href="index.html">Home</a> &gt; Cmdlet Reference &gt; Publishing</div>
+        <div class="content">
+            <h1>Publishing Cmdlets</h1>
+            <p>Publishing is the final step in the application readiness pipeline: once an application has been packaged, tested, and passed quality review, it is published to one or more deployment targets. App Readiness supports publishing to Microsoft Intune, Microsoft Endpoint Configuration Manager (MECM/SCCM), and custom Generic Integration endpoints. These cmdlets let you discover available connectors, inspect publishing templates, and trigger publish operations from PowerShell.</p>
+
+            <!-- ================================================ -->
+            <h2 id="Get-JuribaAppRIntegrationConnector">Get-JuribaAppRIntegrationConnector</h2>
+
+            <h3>Synopsis</h3>
+            <p>Gets integration connectors configured in Juriba App Readiness.</p>
+
+            <h3>Description</h3>
+            <p>Integration connectors represent the external deployment targets that App Readiness can publish packages to. Each connector defines a connection to a specific system -- for example, a Microsoft Intune tenant, an MECM site server, or a custom generic integration endpoint. Connectors store the credentials, endpoint URLs, and configuration needed to push packages to that target. Use this cmdlet to list all configured connectors or retrieve details for a specific one by ID.</p>
+
+            <h3>Syntax</h3>
+            <pre><code class="language-powershell"># List all connectors
+Get-JuribaAppRIntegrationConnector
+
+# Get a specific connector by ID
+Get-JuribaAppRIntegrationConnector -ConnectorId &lt;Int32&gt;</code></pre>
+
+            <h3>Parameters</h3>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>Type</th><th>Status</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>-Instance</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The URL of the App Readiness instance. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-APIKey</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The API key for authentication. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-ConnectorId</code></td>
+                        <td>Int32</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The unique identifier of a specific connector to retrieve. When omitted, all connectors are returned.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>When to Use</h3>
+            <p>Use this cmdlet at the start of a publishing workflow to discover which integration targets are available. The returned connector IDs and types are needed as inputs when calling <code>Invoke-JuribaAppRPublishIntune</code>, <code>Invoke-JuribaAppRPublishMECM</code>, or <code>Invoke-JuribaAppRPublishGeneric</code>. It is also useful for inventory audits and configuration validation scripts that need to confirm the correct connectors are in place.</p>
+
+            <h3>Examples</h3>
+
+            <h4>Example 1 -- List all integration connectors</h4>
+            <pre><code class="language-powershell">Get-JuribaAppRIntegrationConnector</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>id          : 1
+name        : Intune Production
+type        : Intune
+enabled     : True
+description : Production Intune tenant for Win11 deployment
+
+id          : 2
+name        : MECM Primary Site
+type        : MECM
+enabled     : True
+description : MECM CB 2309 primary site server
+
+id          : 4
+name        : Custom ITSM Publisher
+type        : Generic
+enabled     : True
+description : Publishes packages to internal ITSM platform</code></pre>
+            </details>
+
+            <h4>Example 2 -- Get a specific connector by ID</h4>
+            <pre><code class="language-powershell">Get-JuribaAppRIntegrationConnector -ConnectorId 1</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>id          : 1
+name        : Intune Production
+type        : Intune
+enabled     : True
+description : Production Intune tenant for Win11 deployment</code></pre>
+            </details>
+
+            <h4>Example 3 -- Filter connectors by type</h4>
+            <pre><code class="language-powershell">Get-JuribaAppRIntegrationConnector | Where-Object { $_.type -eq 'Generic' }</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>id          : 4
+name        : Custom ITSM Publisher
+type        : Generic
+enabled     : True
+description : Publishes packages to internal ITSM platform</code></pre>
+            </details>
+
+            <div style="background: #f4f6f9; border-left: 4px solid #1a5276; padding: 1rem 1.25rem; margin: 2rem 0; border-radius: 0 4px 4px 0;">
+                <strong>Note:</strong> The API endpoints used are <code>api/integration/integrationConnector/list</code> (all connectors) and <code>api/integration/integrationConnector/{id}</code> (single connector). The connector ID is distinct from the provider ID used by publishing property endpoints.
+            </div>
+
+            <!-- ================================================ -->
+            <h2 id="Get-JuribaAppRPublishingProperty">Get-JuribaAppRPublishingProperty</h2>
+
+            <h3>Synopsis</h3>
+            <p>Gets publishing properties and templates from Juriba App Readiness.</p>
+
+            <h3>Description</h3>
+            <p>Publishing properties define the configurable fields for a publishing template. Each integration provider (Intune, MECM, or a generic integration) has its own set of properties that control how a package is published -- for example, the Intune display name override, detection rules, or MECM distribution point group. Properties can be scoped by provider and further filtered by package type. This cmdlet supports four retrieval modes depending on which parameters are supplied.</p>
+
+            <h3>Syntax</h3>
+            <pre><code class="language-powershell"># Mode 1: Get all publishing properties
+Get-JuribaAppRPublishingProperty
+
+# Mode 2: Get a specific property by ID
+Get-JuribaAppRPublishingProperty -PropertyId &lt;Int32&gt;
+
+# Mode 3: Get properties for a provider
+Get-JuribaAppRPublishingProperty -ProviderId &lt;Int32&gt;
+
+# Mode 4: Get properties for a provider filtered by package type
+Get-JuribaAppRPublishingProperty -ProviderId &lt;Int32&gt; -PackageType &lt;String&gt;</code></pre>
+
+            <h3>Parameters</h3>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>Type</th><th>Status</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>-Instance</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The URL of the App Readiness instance. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-APIKey</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The API key for authentication. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-PropertyId</code></td>
+                        <td>Int32</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The unique identifier of a specific publishing property. When specified, returns only that property.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-ProviderId</code></td>
+                        <td>Int32</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The integration provider ID. Filters properties to those belonging to the specified provider.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-PackageType</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The package type to filter by (e.g. <code>Msi</code>, <code>IntuneWin</code>, <code>AppAttach</code>). Only used in combination with <code>-ProviderId</code>.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Publishing Templates</h3>
+            <p>A publishing template is the combination of a provider and its configured properties for a given package type. Templates define the default values and required fields that are sent along with a publish request. For example, an Intune IntuneWin template might include properties for the application category, owner, and detection rule type. When you call <code>Invoke-JuribaAppRPublishGeneric</code> with the Simple parameter set, the cmdlet automatically fetches the relevant template properties and populates the request body.</p>
+
+            <h3>When to Use</h3>
+            <p>Use this cmdlet to inspect what properties are available for a publishing template before triggering a publish. This is especially useful when building the <code>-Properties</code> hashtable for <code>Invoke-JuribaAppRPublishGeneric</code>, as you need the property IDs as keys. It is also valuable for documentation, auditing which templates are configured, and validating provider setup.</p>
+
+            <h3>Examples</h3>
+
+            <h4>Example 1 -- Get all publishing properties</h4>
+            <pre><code class="language-powershell">Get-JuribaAppRPublishingProperty</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>id          : 1
+name        : Category
+description : The Intune application category
+required    : False
+packageType : 4
+providerId  : 1
+
+id          : 2
+name        : Owner
+description : Application owner in Intune
+required    : False
+packageType : 4
+providerId  : 1
+
+id          : 3
+name        : Language
+description : Primary language for the package
+required    : True
+packageType : 0
+providerId  : 4
+
+...</code></pre>
+            </details>
+
+            <h4>Example 2 -- Get a specific property by ID</h4>
+            <pre><code class="language-powershell">Get-JuribaAppRPublishingProperty -PropertyId 3</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>id          : 3
+name        : Language
+description : Primary language for the package
+required    : True
+packageType : 0
+providerId  : 4</code></pre>
+            </details>
+
+            <h4>Example 3 -- Get all properties for a provider</h4>
+            <pre><code class="language-powershell">Get-JuribaAppRPublishingProperty -ProviderId 4</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>packageType : 0
+properties  : {@{id=3; name=Language; description=Primary language for the package;
+               required=True}, @{id=5; name=TargetOU; description=Target OU for
+               deployment; required=False}}
+
+packageType : 4
+properties  : {@{id=6; name=DetectionScript; description=Custom detection script
+               path; required=False}}</code></pre>
+            </details>
+
+            <h4>Example 4 -- Get properties for a provider filtered by package type</h4>
+            <pre><code class="language-powershell">Get-JuribaAppRPublishingProperty -ProviderId 1 -PackageType IntuneWin</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>id          : 1
+name        : Category
+description : The Intune application category
+required    : False
+packageType : 4
+providerId  : 1
+
+id          : 2
+name        : Owner
+description : Application owner in Intune
+required    : False
+packageType : 4
+providerId  : 1</code></pre>
+            </details>
+
+            <div style="background: #f4f6f9; border-left: 4px solid #1a5276; padding: 1rem 1.25rem; margin: 2rem 0; border-radius: 0 4px 4px 0;">
+                <strong>Note:</strong> The four modes use different API endpoints depending on the parameter combination: <code>api/integration/publishing/properties</code> (all), <code>api/integration/publishing/properties/{id}</code> (single), <code>api/integration/provider/{id}/properties</code> (by provider), and <code>api/integration/provider/{id}/properties/package-type/{type}</code> (by provider and package type). If both <code>-PropertyId</code> and <code>-ProviderId</code> are supplied, <code>-PropertyId</code> takes precedence.
+            </div>
+
+            <!-- ================================================ -->
+            <h2 id="Invoke-JuribaAppRPublishIntune">Invoke-JuribaAppRPublishIntune</h2>
+
+            <h3>Synopsis</h3>
+            <p>Publishes a package to Microsoft Intune.</p>
+
+            <h3>Description</h3>
+            <p>Triggers the publishing of a completed package to a Microsoft Intune tenant configured as an integration connector. The request body is a hashtable that must include the application ID and package type, along with any Intune-specific properties defined in the publishing template. This cmdlet supports <code>ShouldProcess</code>, so you can use <code>-WhatIf</code> or <code>-Confirm</code> to preview the operation before execution.</p>
+
+            <h3>Syntax</h3>
+            <pre><code class="language-powershell">Invoke-JuribaAppRPublishIntune -Body &lt;Hashtable&gt; [-WhatIf] [-Confirm]</code></pre>
+
+            <h3>Parameters</h3>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>Type</th><th>Status</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>-Instance</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The URL of the App Readiness instance. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-APIKey</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The API key for authentication. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-Body</code></td>
+                        <td>Hashtable</td>
+                        <td><span class="badge req">Required</span></td>
+                        <td>A hashtable containing the publishing configuration. Must include <code>applicationId</code> and <code>packageType</code>. May also include publishing template properties specific to the Intune connector.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>When to Use</h3>
+            <p>Use this cmdlet when you want to publish a packaged application directly to Intune. This is typically the last step in an automated pipeline after the application has been packaged, tested, and passed quality review. It is designed for Intune-specific publishing; for MECM targets use <code>Invoke-JuribaAppRPublishMECM</code>, and for custom endpoints use <code>Invoke-JuribaAppRPublishGeneric</code>.</p>
+
+            <h3>Examples</h3>
+
+            <h4>Example 1 -- Publish an IntuneWin package to Intune</h4>
+            <pre><code class="language-powershell">$body = @{
+    applicationId = 42
+    packageType   = "IntuneWin"
+}
+Invoke-JuribaAppRPublishIntune -Body $body</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>publishingId : 1087
+status       : Queued
+applicationId: 42
+packageType  : IntuneWin
+target       : Intune Production
+createdDate  : 2026-04-01T09:30:15Z</code></pre>
+            </details>
+
+            <h4>Example 2 -- Publish with additional template properties</h4>
+            <pre><code class="language-powershell">$body = @{
+    applicationId = 42
+    packageType   = "IntuneWin"
+    properties    = @(
+        @{ id = 1; value = "Productivity" }
+        @{ id = 2; value = "IT Operations" }
+    )
+}
+Invoke-JuribaAppRPublishIntune -Body $body</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>publishingId : 1088
+status       : Queued
+applicationId: 42
+packageType  : IntuneWin
+target       : Intune Production
+createdDate  : 2026-04-01T09:31:02Z</code></pre>
+            </details>
+
+            <h4>Example 3 -- Preview with -WhatIf</h4>
+            <pre><code class="language-powershell">Invoke-JuribaAppRPublishIntune -Body @{ applicationId = 42; packageType = "IntuneWin" } -WhatIf</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>What if: Performing the operation "Publish to Intune" on target "App 42 (IntuneWin)".</code></pre>
+            </details>
+
+            <h4>Example 4 -- Real-world pipeline: QR check then publish</h4>
+            <pre><code class="language-powershell"># Verify QR passed, then publish to Intune
+$qr = Get-JuribaAppRQualityReview -AppId 42
+if ($qr.QRStatus -eq 'Passed') {
+    $body = @{
+        applicationId = 42
+        packageType   = "IntuneWin"
+        properties    = @(
+            @{ id = 1; value = "Productivity" }
+            @{ id = 2; value = "IT Operations" }
+        )
+    }
+    $result = Invoke-JuribaAppRPublishIntune -Body $body
+    Write-Host "Publishing queued: ID $($result.publishingId)"
+} else {
+    Write-Warning "App 42 has not passed QR (status: $($qr.QRStatus))"
+}</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>Publishing queued: ID 1089</code></pre>
+            </details>
+
+            <div style="background: #f4f6f9; border-left: 4px solid #1a5276; padding: 1rem 1.25rem; margin: 2rem 0; border-radius: 0 4px 4px 0;">
+                <strong>Note:</strong> The <code>-Body</code> hashtable is sent as JSON to <code>POST api/publishing/intune</code>. The <code>applicationId</code> and <code>packageType</code> fields are required; any additional keys depend on the publishing template configured for your Intune connector. Use <code>Get-JuribaAppRPublishingProperty</code> to discover available property IDs.
+            </div>
+
+            <!-- ================================================ -->
+            <h2 id="Invoke-JuribaAppRPublishMECM">Invoke-JuribaAppRPublishMECM</h2>
+
+            <h3>Synopsis</h3>
+            <p>Publishes a package to Microsoft Endpoint Configuration Manager (MECM/SCCM).</p>
+
+            <h3>Description</h3>
+            <p>Triggers the publishing of a completed package to a MECM site server configured as an integration connector. The request body follows the same pattern as Intune publishing: a hashtable containing the application ID, package type, and any MECM-specific template properties. This cmdlet supports <code>ShouldProcess</code> for <code>-WhatIf</code> and <code>-Confirm</code>.</p>
+
+            <h3>Syntax</h3>
+            <pre><code class="language-powershell">Invoke-JuribaAppRPublishMECM -Body &lt;Hashtable&gt; [-WhatIf] [-Confirm]</code></pre>
+
+            <h3>Parameters</h3>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>Type</th><th>Status</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>-Instance</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The URL of the App Readiness instance. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-APIKey</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The API key for authentication. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-Body</code></td>
+                        <td>Hashtable</td>
+                        <td><span class="badge req">Required</span></td>
+                        <td>A hashtable containing the publishing configuration. Must include <code>applicationId</code> and <code>packageType</code>. May also include publishing template properties specific to the MECM connector.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>When to Use</h3>
+            <p>Use this cmdlet when your deployment target is MECM rather than Intune. The workflow is identical to Intune publishing -- build a body hashtable with the application ID, package type, and optional template properties, then invoke the cmdlet. For organizations that use both Intune and MECM, you can publish the same application to both targets in sequence.</p>
+
+            <h3>Examples</h3>
+
+            <h4>Example 1 -- Publish an MSI package to MECM</h4>
+            <pre><code class="language-powershell">Invoke-JuribaAppRPublishMECM -Body @{
+    applicationId = 42
+    packageType   = "Msi"
+}</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>publishingId : 2041
+status       : Queued
+applicationId: 42
+packageType  : Msi
+target       : MECM Primary Site
+createdDate  : 2026-04-01T10:15:33Z</code></pre>
+            </details>
+
+            <h4>Example 2 -- Publish with MECM-specific properties</h4>
+            <pre><code class="language-powershell">$body = @{
+    applicationId = 105
+    packageType   = "Msi"
+    properties    = @(
+        @{ id = 10; value = "All Desktop Systems" }
+        @{ id = 11; value = "\\mecm-dp\Content$" }
+    )
+}
+Invoke-JuribaAppRPublishMECM -Body $body</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>publishingId : 2042
+status       : Queued
+applicationId: 105
+packageType  : Msi
+target       : MECM Primary Site
+createdDate  : 2026-04-01T10:16:08Z</code></pre>
+            </details>
+
+            <h4>Example 3 -- Publish to both Intune and MECM</h4>
+            <pre><code class="language-powershell"># Dual publish: IntuneWin to Intune, MSI to MECM
+Invoke-JuribaAppRPublishIntune -Body @{ applicationId = 42; packageType = "IntuneWin" }
+Invoke-JuribaAppRPublishMECM   -Body @{ applicationId = 42; packageType = "Msi" }
+
+Write-Host "Application 42 queued for both Intune and MECM."</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>Application 42 queued for both Intune and MECM.</code></pre>
+            </details>
+
+            <div style="background: #f4f6f9; border-left: 4px solid #1a5276; padding: 1rem 1.25rem; margin: 2rem 0; border-radius: 0 4px 4px 0;">
+                <strong>Note:</strong> The body is posted to <code>POST api/publishing/mecm</code>. MECM publishing requires that the MECM connector is configured with valid site server credentials and network access to the distribution point infrastructure.
+            </div>
+
+            <!-- ================================================ -->
+            <h2 id="Invoke-JuribaAppRPublishGeneric">Invoke-JuribaAppRPublishGeneric</h2>
+
+            <h3>Synopsis</h3>
+            <p>Publishes a package to a generic integration endpoint.</p>
+
+            <h3>Description</h3>
+            <p>Triggers the publishing of a completed package to a configured generic integration. This cmdlet offers two parameter sets:</p>
+            <ul>
+                <li><strong>Simple</strong> (default) -- You provide <code>-ApplicationId</code>, <code>-IntegrationId</code>, and <code>-PackageType</code>. The cmdlet automatically fetches the application name, install/uninstall command lines, and the integration's publishing template properties, then assembles the full request body for you.</li>
+                <li><strong>RawBody</strong> -- You provide a complete <code>-Body</code> hashtable. The cmdlet sends it directly with no auto-population. This is useful for advanced or legacy scenarios where you need full control over the payload.</li>
+            </ul>
+            <p>The Simple parameter set also accepts an optional <code>-Properties</code> hashtable to override specific template property values, and an optional <code>-Prerequisites</code> array for dependency definitions. This cmdlet supports <code>ShouldProcess</code>.</p>
+
+            <h3>Syntax</h3>
+            <pre><code class="language-powershell"># Simple parameter set (auto-populates body)
+Invoke-JuribaAppRPublishGeneric
+    -ApplicationId &lt;Int32&gt;
+    -IntegrationId &lt;Int32&gt;
+    -PackageType &lt;String&gt;
+    [-Properties &lt;Hashtable&gt;]
+    [-Prerequisites &lt;Array&gt;]
+    [-WhatIf] [-Confirm]
+
+# RawBody parameter set (sends body as-is)
+Invoke-JuribaAppRPublishGeneric
+    -Body &lt;Hashtable&gt;
+    [-WhatIf] [-Confirm]</code></pre>
+
+            <h3>Parameters</h3>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>Type</th><th>Status</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>-Instance</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The URL of the App Readiness instance. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-APIKey</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The API key for authentication. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-ApplicationId</code></td>
+                        <td>Int32</td>
+                        <td><span class="badge req">Required</span> <small>(Simple)</small></td>
+                        <td>The ID of the application to publish.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-IntegrationId</code></td>
+                        <td>Int32</td>
+                        <td><span class="badge req">Required</span> <small>(Simple)</small></td>
+                        <td>The ID of the generic integration to publish to.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-PackageType</code></td>
+                        <td>String</td>
+                        <td><span class="badge req">Required</span> <small>(Simple)</small></td>
+                        <td>The package type to publish. Valid values: <code>Msi</code>, <code>IntuneWin</code>, <code>Psadt</code>, <code>AppAttach</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-Properties</code></td>
+                        <td>Hashtable</td>
+                        <td><span class="badge opt">Optional</span> <small>(Simple)</small></td>
+                        <td>A hashtable of publishing template property values, keyed by property ID. Properties not included in this hashtable are sent with empty values. Use <code>Get-JuribaAppRPublishingProperty</code> to discover available property IDs.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-Prerequisites</code></td>
+                        <td>Array</td>
+                        <td><span class="badge opt">Optional</span> <small>(Simple)</small></td>
+                        <td>An array of prerequisite objects. Defaults to an empty array when omitted.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-Body</code></td>
+                        <td>Hashtable</td>
+                        <td><span class="badge req">Required</span> <small>(RawBody)</small></td>
+                        <td>A complete request body hashtable. When provided, the cmdlet skips all auto-population and sends this body directly to the API.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Package Type Mapping</h3>
+            <p>The <code>-PackageType</code> parameter accepts friendly names that are mapped to integer values in the API request body:</p>
+            <table>
+                <thead>
+                    <tr><th>Friendly Name</th><th>API Value</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>Msi</code></td><td>0</td></tr>
+                    <tr><td><code>IntuneWin</code></td><td>4</td></tr>
+                    <tr><td><code>AppAttach</code></td><td>5</td></tr>
+                    <tr><td><code>Psadt</code></td><td>6</td></tr>
+                </tbody>
+            </table>
+
+            <h3>Auto-Population (Simple Parameter Set)</h3>
+            <p>When using the Simple parameter set, the cmdlet performs the following steps before sending the request:</p>
+            <ol>
+                <li>Calls <code>Get-JuribaAppRApplication -AppId $ApplicationId</code> to retrieve the application name and command lines.</li>
+                <li>Locates the install and uninstall command lines matching the specified package type from the application's <code>ext.allCommandLines</code> collection.</li>
+                <li>Calls <code>Get-JuribaAppRPublishingProperty -ProviderId $IntegrationId</code> to fetch the integration's template properties.</li>
+                <li>Builds a properties array from the template, using values from <code>-Properties</code> where provided and empty strings otherwise.</li>
+                <li>Assembles the complete body with <code>applicationId</code>, <code>integrationId</code>, <code>applicationName</code>, <code>installationProgram</code>, <code>uninstallationProgram</code>, <code>properties</code>, <code>packageType</code>, and <code>prerequisites</code>.</li>
+            </ol>
+
+            <h3>When to Use</h3>
+            <p>Use this cmdlet when publishing to a custom or third-party deployment system that has been configured as a generic integration in App Readiness. The Simple parameter set is recommended for most use cases because it handles the boilerplate of fetching application metadata and template properties. Use the RawBody parameter set when you need to send a payload that differs from the auto-populated structure, or when integrating with legacy scripts that already construct the body.</p>
+
+            <h3>Examples</h3>
+
+            <h4>Example 1 -- Simple publish with auto-population</h4>
+            <pre><code class="language-powershell">Invoke-JuribaAppRPublishGeneric -ApplicationId 1941 -IntegrationId 4 -PackageType Msi</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>publishingId : 3201
+status       : Queued
+applicationId: 1941
+packageType  : 0
+target       : Custom ITSM Publisher
+createdDate  : 2026-04-01T11:00:44Z</code></pre>
+            </details>
+
+            <h4>Example 2 -- Simple publish with custom property values</h4>
+            <pre><code class="language-powershell"># First, discover available properties for the integration
+Get-JuribaAppRPublishingProperty -ProviderId 4
+
+# Then publish with specific property overrides
+Invoke-JuribaAppRPublishGeneric `
+    -ApplicationId 1941 `
+    -IntegrationId 4 `
+    -PackageType Msi `
+    -Properties @{
+        3 = "English"
+        5 = "OU=Desktops,DC=contoso,DC=com"
+    }</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>publishingId : 3202
+status       : Queued
+applicationId: 1941
+packageType  : 0
+target       : Custom ITSM Publisher
+createdDate  : 2026-04-01T11:02:18Z</code></pre>
+            </details>
+
+            <h4>Example 3 -- Simple publish with prerequisites</h4>
+            <pre><code class="language-powershell">Invoke-JuribaAppRPublishGeneric `
+    -ApplicationId 1941 `
+    -IntegrationId 4 `
+    -PackageType IntuneWin `
+    -Prerequisites @(
+        @{ applicationId = 1900; packageType = 4; name = ".NET 8 Runtime" }
+    )</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>publishingId : 3203
+status       : Queued
+applicationId: 1941
+packageType  : 4
+target       : Custom ITSM Publisher
+createdDate  : 2026-04-01T11:05:30Z</code></pre>
+            </details>
+
+            <h4>Example 4 -- RawBody for full control</h4>
+            <pre><code class="language-powershell">$body = @{
+    applicationId         = "1941"
+    integrationId         = 4
+    applicationName       = "Acme Viewer Pro"
+    installationProgram   = "msiexec /i AcmeViewer.msi /qn"
+    uninstallationProgram = "msiexec /x {GUID} /qn"
+    properties            = @(
+        @{ id = 3; value = "English" }
+        @{ id = 5; value = "OU=Desktops,DC=contoso,DC=com" }
+    )
+    packageType           = 0
+    prerequisites         = @()
+}
+Invoke-JuribaAppRPublishGeneric -Body $body</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>publishingId : 3204
+status       : Queued
+applicationId: 1941
+packageType  : 0
+target       : Custom ITSM Publisher
+createdDate  : 2026-04-01T11:08:55Z</code></pre>
+            </details>
+
+            <h4>Example 5 -- Preview with -WhatIf</h4>
+            <pre><code class="language-powershell">Invoke-JuribaAppRPublishGeneric -ApplicationId 1941 -IntegrationId 4 -PackageType Msi -WhatIf</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>What if: Performing the operation "Publish to generic integration" on target
+"Acme Viewer Pro (App 1941, Msi) to integration 4".</code></pre>
+            </details>
+
+            <div style="background: #fff8e1; border-left: 4px solid #f0ad4e; padding: 1rem 1.25rem; margin: 2rem 0; border-radius: 0 4px 4px 0;">
+                <strong>Important:</strong> The Simple and RawBody parameter sets are mutually exclusive. If you provide <code>-Body</code>, the cmdlet ignores <code>-ApplicationId</code>, <code>-IntegrationId</code>, <code>-PackageType</code>, <code>-Properties</code>, and <code>-Prerequisites</code>. Conversely, if you use the Simple set, you must not provide <code>-Body</code>.
+            </div>
+
+            <div style="background: #f4f6f9; border-left: 4px solid #1a5276; padding: 1rem 1.25rem; margin: 2rem 0; border-radius: 0 4px 4px 0;">
+                <strong>Note:</strong> Both parameter sets post to <code>POST api/publishing/generic</code>. When using the Simple set, ensure the application has been packaged for the specified package type and that command lines exist in the application record, otherwise the <code>installationProgram</code> and <code>uninstallationProgram</code> fields will be sent as empty strings.
+            </div>
+        </div>
+        <div class="page-nav">
+            <a href="cmdlets-quality-review.html" class="prev">&larr; Quality Review</a>
+            <a href="cmdlets-generic-integration.html" class="next">Generic Integration &rarr;</a>
+        </div>
+    </main>
+    <script src="js/nav.js"></script>
+    <script src="js/copy-code.js"></script>
+</body>
+</html>

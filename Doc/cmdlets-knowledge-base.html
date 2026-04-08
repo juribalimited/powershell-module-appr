@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knowledge Base - Juriba.AppR Documentation</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav id="sidebar"></nav>
+    <main>
+        <div class="breadcrumb"><a href="index.html">Home</a> &gt; Cmdlet Reference &gt; Knowledge Base</div>
+        <div class="content">
+            <h1>Knowledge Base Cmdlets</h1>
+            <p>These cmdlets interact with the Juriba Knowledge Base -- a curated database of known applications, their versions, download sources, and proven install/uninstall command lines. The Knowledge Base enables automated application discovery and command detection without manual research.</p>
+
+            <!-- ──────────────────────────────────────────────────────── -->
+            <h2 id="search-juribaapprknowledgebase">Search-JuribaAppRKnowledgeBase</h2>
+
+            <p>Searches the Juriba Knowledge Base for applications by name or retrieves version and source details for a specific application. Supports two API backends: the instance-proxied endpoint (v5.2) and the UDA direct API (v6.0+).</p>
+
+            <h3>Syntax</h3>
+            <pre><code class="language-powershell"># Parameter Set: Search (by name)
+Search-JuribaAppRKnowledgeBase
+    -Search &lt;String&gt;
+    [-Instance &lt;String&gt;]
+    [-APIKey &lt;String&gt;]
+    [-UseUDA]
+    [-UDAKey &lt;String&gt;]
+    [-UDAHost &lt;String&gt;]
+    [-Limit &lt;Int32&gt;]
+
+# Parameter Set: ById (versions and sources)
+Search-JuribaAppRKnowledgeBase
+    -ApplicationId &lt;String&gt;
+    [-Instance &lt;String&gt;]
+    [-APIKey &lt;String&gt;]
+    [-UseUDA]
+    [-UDAKey &lt;String&gt;]
+    [-UDAHost &lt;String&gt;]
+    [-Limit &lt;Int32&gt;]</code></pre>
+
+            <h3>Parameters</h3>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>Type</th><th>Status</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>-Search</code></td><td>String</td><td><span style="color:#c0392b;font-weight:bold;">Required*</span></td><td>Search term to query the Knowledge Base by application name. Part of the <em>Search</em> parameter set.</td></tr>
+                    <tr><td><code>-ApplicationId</code></td><td>String</td><td><span style="color:#c0392b;font-weight:bold;">Required*</span></td><td>KB application GUID to retrieve version and source details. Part of the <em>ById</em> parameter set.</td></tr>
+                    <tr><td><code>-Instance</code></td><td>String</td><td><span style="color:#7f8c8d;">Optional</span></td><td>Instance URL. Not required if connected via <code>Connect-JuribaAppR</code>.</td></tr>
+                    <tr><td><code>-APIKey</code></td><td>String</td><td><span style="color:#7f8c8d;">Optional</span></td><td>API key. Not required if connected via <code>Connect-JuribaAppR</code>.</td></tr>
+                    <tr><td><code>-UseUDA</code></td><td>Switch</td><td><span style="color:#7f8c8d;">Optional</span></td><td>Call the UDA API directly (<code>uda.api.juriba.app</code>) instead of the instance-proxied endpoint. Required for v6.0+ until the instance proxy is fixed.</td></tr>
+                    <tr><td><code>-UDAKey</code></td><td>String</td><td><span style="color:#7f8c8d;">Optional</span></td><td>Separate API key for the UDA service. If not specified, the AppR connection API key is used.</td></tr>
+                    <tr><td><code>-UDAHost</code></td><td>String</td><td><span style="color:#7f8c8d;">Optional</span></td><td>Override the UDA API host. Default: <code>https://uda.api.juriba.app</code>.</td></tr>
+                    <tr><td><code>-Limit</code></td><td>Int32</td><td><span style="color:#7f8c8d;">Optional</span></td><td>Maximum number of results to return (UDA v2 endpoint only). Default: 25.</td></tr>
+                </tbody>
+            </table>
+            <p><em>* One of <code>-Search</code> or <code>-ApplicationId</code> is required. They belong to different parameter sets and cannot be used together.</em></p>
+
+            <h3>API Backends and Auto-Fallback</h3>
+            <p>The cmdlet supports two API backends:</p>
+            <ul>
+                <li><strong>Instance-proxied (default):</strong> Calls your App Readiness instance's <code>api/kb/</code> endpoints. This is the simplest path and works with v5.2 instances.</li>
+                <li><strong>UDA direct:</strong> Calls the Juriba UDA API at <code>uda.api.juriba.app</code>. Use <code>-UseUDA</code> to select this path explicitly.</li>
+            </ul>
+            <p>When the instance-proxied endpoint is used (the default), the cmdlet automatically falls back to the UDA API if the proxied call fails. This handles cases where the instance proxy returns errors (such as the v6.0 RC proxy issue that returns HTTP 500).</p>
+
+            <div style="background: #fef9e7; border-left: 4px solid #f39c12; padding: 1rem 1.25rem; margin: 2rem 0; border-radius: 0 4px 4px 0;">
+                <strong>v6.0 Instance Proxy Issue:</strong> As of the v6.0 release candidate, the instance-proxied KB endpoint returns HTTP 500 for API key authentication. The cmdlet handles this transparently via auto-fallback, but you can avoid the failed request by specifying <code>-UseUDA</code> directly.
+            </div>
+
+            <h3>When to Use</h3>
+            <ul>
+                <li>Use <code>-Search</code> to find applications by name before uploading an installer. The KB may already have the application catalogued with known-good install commands.</li>
+                <li>Use <code>-ApplicationId</code> to drill into a specific application's versions and download sources. This is the second step after searching by name.</li>
+                <li>Use <code>-UseUDA</code> when connecting to a v6.0+ instance, or when the instance proxy is known to be unreliable.</li>
+            </ul>
+
+            <h3>Examples</h3>
+
+            <h4>Example 1: Search by name</h4>
+            <pre><code class="language-powershell">$results = Search-JuribaAppRKnowledgeBase -Search "Firefox"
+$results | Format-Table id, name, manufacturer -AutoSize</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>id                                   name                         manufacturer
+--                                   ----                         ------------
+b5108d80-8ee5-47be-b007-7f12451f0806 Mozilla Firefox              Mozilla Corporation
+c7a2e3f1-4d6b-48c9-a123-9e8d7c6b5a40 Mozilla Firefox ESR          Mozilla Corporation
+d9b4f5a2-6e8c-4a1d-b345-1f2e3d4c5b6a Mozilla Firefox for Enterprise Mozilla Corporation</code></pre>
+            </details>
+
+            <h4>Example 2: Get versions and sources for a specific application</h4>
+            <pre><code class="language-powershell">$versions = Search-JuribaAppRKnowledgeBase -ApplicationId "b5108d80-8ee5-47be-b007-7f12451f0806" -UseUDA
+$versions | Select-Object -First 5 | Format-Table version, sourceType, downloadUrl -AutoSize</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>version  sourceType downloadUrl
+-------  ---------- -----------
+128.0.3  Vendor     https://download-installer.cdn.mozilla.net/pub/firefox/releases/128.0.3/...
+127.0.2  Vendor     https://download-installer.cdn.mozilla.net/pub/firefox/releases/127.0.2/...
+126.0.1  Vendor     https://download-installer.cdn.mozilla.net/pub/firefox/releases/126.0.1/...
+125.0.3  Vendor     https://download-installer.cdn.mozilla.net/pub/firefox/releases/125.0.3/...
+124.0.2  Vendor     https://download-installer.cdn.mozilla.net/pub/firefox/releases/124.0.2/...</code></pre>
+            </details>
+
+            <h4>Example 3: Complete flow -- search, pick an app, get the download URL</h4>
+            <pre><code class="language-powershell"># Step 1: Search for the application
+$results = Search-JuribaAppRKnowledgeBase -Search "7-Zip" -UseUDA
+$app = $results | Where-Object { $_.name -eq "7-Zip" } | Select-Object -First 1
+Write-Host "Found: $($app.name) ($($app.id))"
+
+# Step 2: Get version details
+$versions = Search-JuribaAppRKnowledgeBase -ApplicationId $app.id -UseUDA
+$latest = $versions | Sort-Object version -Descending | Select-Object -First 1
+Write-Host "Latest version: $($latest.version)"
+Write-Host "Download URL: $($latest.downloadUrl)"
+
+# Step 3: Download and upload to App Readiness
+$installerPath = "C:\Temp\$($latest.version)\7-Zip-Setup.exe"
+Invoke-WebRequest -Uri $latest.downloadUrl -OutFile $installerPath
+$upload = Send-JuribaAppRSetupFile -FilePath $installerPath</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>Found: 7-Zip (a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d)
+Latest version: 24.07
+Download URL: https://www.7-zip.org/a/7z2407-x64.exe
+
+Uuid        : f9e8d7c6-b5a4-3210-fedc-ba9876543210
+FileName    : 7-Zip-Setup.exe
+FileSize    : 2201498
+TotalChunks : 1</code></pre>
+            </details>
+
+            <h4>Example 4: Explicit UDA connection with separate key</h4>
+            <pre><code class="language-powershell">Search-JuribaAppRKnowledgeBase -Search "Notepad++" `
+    -UseUDA -UDAKey "uda-specific-api-key-here" -Limit 10</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>id                                   name          manufacturer
+--                                   ----          ------------
+e4f5a6b7-8c9d-0e1f-2a3b-4c5d6e7f8a9b Notepad++     Don Ho</code></pre>
+            </details>
+
+            <div style="background: #f4f6f9; border-left: 4px solid #1a5276; padding: 1rem 1.25rem; margin: 2rem 0; border-radius: 0 4px 4px 0;">
+                <strong>Note:</strong> The <code>-Limit</code> parameter only applies to the UDA v2 search endpoint. The instance-proxied endpoint returns all matching results. The <code>-ApplicationId</code> parameter accepts the GUID-format application ID returned by the search, not a numeric App Readiness application ID.
+            </div>
+
+            <!-- ──────────────────────────────────────────────────────── -->
+            <h2 id="get-juribaapprcommandsuggestion">Get-JuribaAppRCommandSuggestion</h2>
+
+            <p>Queries the App Readiness command suggestion engine for an uploaded setup file. The engine uses hash matching against the Juriba Knowledge Base, rules-based programmatic detection, and AI-based analysis to suggest the best install and uninstall command lines.</p>
+
+            <p>This cmdlet is called automatically by <code>New-JuribaAppRApplication</code> when <code>-CommandLine</code> and <code>-SkipCommandSuggestion</code> are not specified. You can also call it directly to inspect the full set of candidates before creating an application.</p>
+
+            <h3>Syntax</h3>
+            <pre><code class="language-powershell">Get-JuribaAppRCommandSuggestion
+    -UploadId &lt;String&gt;
+    -FileName &lt;String&gt;
+    [-Instance &lt;String&gt;]
+    [-APIKey &lt;String&gt;]
+    [-Name &lt;String&gt;]
+    [-Manufacturer &lt;String&gt;]
+    [-Version &lt;String&gt;]</code></pre>
+
+            <h3>Parameters</h3>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>Type</th><th>Status</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>-UploadId</code></td><td>String</td><td><span style="color:#c0392b;font-weight:bold;">Required</span></td><td>UUID of the uploaded file (from <code>Send-JuribaAppRSetupFile</code>).</td></tr>
+                    <tr><td><code>-FileName</code></td><td>String</td><td><span style="color:#c0392b;font-weight:bold;">Required</span></td><td>File name of the uploaded setup file.</td></tr>
+                    <tr><td><code>-Instance</code></td><td>String</td><td><span style="color:#7f8c8d;">Optional</span></td><td>Instance URL override.</td></tr>
+                    <tr><td><code>-APIKey</code></td><td>String</td><td><span style="color:#7f8c8d;">Optional</span></td><td>API key override.</td></tr>
+                    <tr><td><code>-Name</code></td><td>String</td><td><span style="color:#7f8c8d;">Optional</span></td><td>Application name. Improves KB matching accuracy.</td></tr>
+                    <tr><td><code>-Manufacturer</code></td><td>String</td><td><span style="color:#7f8c8d;">Optional</span></td><td>Manufacturer name. Improves KB matching accuracy.</td></tr>
+                    <tr><td><code>-Version</code></td><td>String</td><td><span style="color:#7f8c8d;">Optional</span></td><td>Application version. Improves KB matching accuracy.</td></tr>
+                </tbody>
+            </table>
+
+            <h3>Suggestion Sources</h3>
+            <p>The command suggestion engine returns candidates from three sources, each identified by a numeric <code>source</code> value:</p>
+            <table>
+                <thead>
+                    <tr><th>Source</th><th>Value</th><th>Description</th><th>Priority</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Juriba Knowledge Base</td><td>3</td><td>Commands verified across the Juriba customer base. Matched by file hash or application identity.</td><td>Highest</td></tr>
+                    <tr><td>Programmatic</td><td>1</td><td>Rules-based detection from file naming conventions, installer type (MSI, NSIS, Inno Setup, etc.), and embedded metadata.</td><td>Medium</td></tr>
+                    <tr><td>AI</td><td>2</td><td>Machine-learning suggestions based on file analysis. Used as a fallback when KB and programmatic sources have no match.</td><td>Lowest</td></tr>
+                </tbody>
+            </table>
+
+            <h3>Selection Logic</h3>
+            <p>When <code>New-JuribaAppRApplication</code> processes the suggestion response, it selects a single install command using this logic:</p>
+            <ol>
+                <li>Filter commands to <code>type = 1</code> (install commands only; uninstall is handled by the product).</li>
+                <li>Iterate sources in priority order: KB (3), Programmatic (1), AI (2).</li>
+                <li>Within each source, prefer commands where <code>lastResult &gt; 0</code> (previously successful), then rank by <code>successRate</code> descending.</li>
+                <li>Select the top candidate from the first source that has any matches.</li>
+            </ol>
+
+            <h3>When to Use</h3>
+            <ul>
+                <li>Call this directly when you want to inspect all suggestion candidates before committing to a command line.</li>
+                <li>Useful for debugging when <code>New-JuribaAppRApplication</code> selects an unexpected command -- you can see the full ranked list.</li>
+                <li>In most automation workflows, you do not need to call this directly; <code>New-JuribaAppRApplication</code> handles it internally.</li>
+            </ul>
+
+            <h3>Examples</h3>
+
+            <h4>Example 1: Get suggestions for an uploaded file</h4>
+            <pre><code class="language-powershell">$upload = Send-JuribaAppRSetupFile -FilePath "C:\Installers\7z2407-x64.exe"
+$cmds = Get-JuribaAppRCommandSuggestion -UploadId $upload.Uuid -FileName $upload.FileName `
+    -Name "7-Zip" -Manufacturer "Igor Pavlov" -Version "24.07"
+$cmds</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>commands : {
+    @{
+        type        = 1
+        command     = "7z2407-x64.exe /S"
+        source      = 3
+        successRate = 98.5
+        failureRate = 1.5
+        lastResult  = 1
+    },
+    @{
+        type        = 1
+        command     = "7z2407-x64.exe /S /D=""C:\Program Files\7-Zip"""
+        source      = 1
+        successRate = 85.0
+        failureRate = 15.0
+        lastResult  = 0
+    },
+    @{
+        type        = 1
+        command     = "7z2407-x64.exe /S /SILENT"
+        source      = 2
+        successRate = 60.0
+        failureRate = 40.0
+        lastResult  = 0
+    },
+    @{
+        type        = 2
+        command     = "C:\Program Files\7-Zip\Uninstall.exe /S"
+        source      = 3
+        successRate = 95.0
+        failureRate = 5.0
+        lastResult  = 1
+    }
+}</code></pre>
+            </details>
+
+            <h4>Example 2: Inspect install candidates only</h4>
+            <pre><code class="language-powershell">$cmds = Get-JuribaAppRCommandSuggestion -UploadId $upload.Uuid -FileName $upload.FileName
+$installCmds = $cmds.commands | Where-Object { $_.type -eq 1 }
+$installCmds | Sort-Object source | Format-Table source, command, successRate, lastResult -AutoSize</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>source command                                   successRate lastResult
+------ -------                                   ----------- ----------
+     1 7z2407-x64.exe /S /D="C:\Program Files..."       85.0          0
+     2 7z2407-x64.exe /S /SILENT                         60.0          0
+     3 7z2407-x64.exe /S                                 98.5          1</code></pre>
+            </details>
+
+            <h4>Example 3: Use suggestions to manually set the command line</h4>
+            <pre><code class="language-powershell"># Get suggestions
+$cmds = Get-JuribaAppRCommandSuggestion -UploadId $upload.Uuid -FileName $upload.FileName `
+    -Name "Custom App" -Manufacturer "Contoso" -Version "2.0"
+
+# Pick the best KB suggestion if available
+$kbCmd = $cmds.commands | Where-Object { $_.type -eq 1 -and $_.source -eq 3 } |
+    Sort-Object successRate -Descending | Select-Object -First 1
+
+if ($kbCmd) {
+    Write-Host "Using KB command: $($kbCmd.command) (success rate: $($kbCmd.successRate)%)"
+    $app = New-JuribaAppRApplication -Uuid $upload.Uuid -FileName $upload.FileName `
+        -FileSize $upload.FileSize -TotalChunks $upload.TotalChunks `
+        -CommandLine $kbCmd.command -SkipCommandSuggestion -RunImmediately
+} else {
+    Write-Host "No KB match found, letting the engine auto-select."
+    $app = New-JuribaAppRApplication -Uuid $upload.Uuid -FileName $upload.FileName `
+        -FileSize $upload.FileSize -TotalChunks $upload.TotalChunks -RunImmediately
+}</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>Using KB command: CustomApp-Setup.exe /quiet /norestart (success rate: 92.3%)
+
+Uuid     : e8b2d4a1-3c6f-4e9a-b71d-2a5f8c0e9d34
+FileName : CustomApp-Setup.exe
+Status   : Submitted</code></pre>
+            </details>
+
+            <div style="background: #f4f6f9; border-left: 4px solid #1a5276; padding: 1rem 1.25rem; margin: 2rem 0; border-radius: 0 4px 4px 0;">
+                <strong>Note:</strong> The <code>commands</code> array contains both install (<code>type = 1</code>) and uninstall (<code>type = 2</code>) suggestions. The <code>New-JuribaAppRApplication</code> cmdlet only uses install commands; uninstall is intentionally left empty because the product detects the correct uninstall command during the packaging phase.
+            </div>
+
+            <div style="background: #f4f6f9; border-left: 4px solid #1a5276; padding: 1rem 1.25rem; margin: 2rem 0; border-radius: 0 4px 4px 0;">
+                <strong>Note:</strong> The API request body uses the field name <code>applicationManufacture</code> (without the trailing "r"). This is a known API quirk. The cmdlet handles this mapping internally -- always pass <code>-Manufacturer</code> with the standard spelling.
+            </div>
+
+        </div>
+        <div class="page-nav">
+            <a href="cmdlets-upload-create.html" class="prev">&larr; Upload &amp; Create</a>
+            <a href="packages.html" class="next">Packages &rarr;</a>
+        </div>
+    </main>
+    <script src="js/nav.js"></script>
+    <script src="js/copy-code.js"></script>
+</body>
+</html>

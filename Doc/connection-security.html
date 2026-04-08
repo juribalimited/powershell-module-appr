@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connection &amp; Security - Juriba.AppR Documentation</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav id="sidebar"></nav>
+    <main>
+        <div class="breadcrumb"><a href="index.html">Home</a> &rsaquo; Connection &amp; Security</div>
+        <div class="content">
+
+            <h1>Connection &amp; Security</h1>
+            <p>
+                The Juriba.AppR module provides a secure connection model that stores credentials
+                in memory as a <code>SecureString</code> so that subsequent cmdlets can authenticate
+                automatically. This page covers the three cmdlets that manage that lifecycle:
+                connecting, storing keys, and disconnecting.
+            </p>
+
+            <!-- ═══════════════════════════════════════════════════════════════
+                 Connect-JuribaAppR
+                 ═══════════════════════════════════════════════════════════════ -->
+
+            <h2 id="Connect-JuribaAppR">Connect-JuribaAppR</h2>
+
+            <p>
+                Establishes a persistent connection to a Juriba App Readiness instance. Once
+                connected, all other cmdlets in the module use the stored credentials automatically
+                &mdash; you do not need to pass <code>-Instance</code> and <code>-APIKey</code> to
+                every call.
+            </p>
+            <p>
+                <strong>Alias:</strong> <code>Connect-AppR</code>
+            </p>
+
+            <h3>Syntax</h3>
+
+            <pre><code class="language-powershell"># Parameter set 1 — Plain text (default, least secure)
+Connect-JuribaAppR
+    -Instance &lt;String&gt;
+    -APIKey &lt;String&gt;
+
+# Parameter set 2 — SecureString
+Connect-JuribaAppR
+    -Instance &lt;String&gt;
+    -SecureAPIKey &lt;SecureString&gt;
+
+# Parameter set 3 — SecretManagement (recommended)
+Connect-JuribaAppR
+    -Instance &lt;String&gt;
+    -SecretName &lt;String&gt;
+    [-VaultName &lt;String&gt;]</code></pre>
+
+            <h3>Parameters</h3>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Required</th>
+                        <th>Default</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>-Instance</code></td>
+                        <td><code>String</code></td>
+                        <td><span class="badge required">Required</span></td>
+                        <td>&mdash;</td>
+                        <td>
+                            The full URL of the Juriba App Readiness instance
+                            (e.g. <code>https://appr.example.com</code>). A trailing slash is
+                            automatically removed.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>-APIKey</code></td>
+                        <td><code>String</code></td>
+                        <td><span class="badge required">Required</span> <em>(PlainText set)</em></td>
+                        <td>&mdash;</td>
+                        <td>
+                            The API key as a plain text string. Accepted for interactive use and
+                            backward compatibility. Avoid in saved scripts &mdash; the key will be
+                            visible in your console history.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>-SecureAPIKey</code></td>
+                        <td><code>SecureString</code></td>
+                        <td><span class="badge required">Required</span> <em>(SecureString set)</em></td>
+                        <td>&mdash;</td>
+                        <td>
+                            The API key as a <code>SecureString</code>. Use with
+                            <code>Read-Host -AsSecureString</code> for interactive prompts that
+                            never expose the key in console history.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>-SecretName</code></td>
+                        <td><code>String</code></td>
+                        <td><span class="badge required">Required</span> <em>(SecretManagement set)</em></td>
+                        <td>&mdash;</td>
+                        <td>
+                            The name of a secret stored in a PowerShell SecretManagement vault.
+                            Requires the <code>Microsoft.PowerShell.SecretManagement</code> module
+                            and at least one registered vault. Use
+                            <a href="#Set-JuribaAppRAPIKey"><code>Set-JuribaAppRAPIKey</code></a>
+                            to store the key first.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>-VaultName</code></td>
+                        <td><code>String</code></td>
+                        <td><span class="badge optional">Optional</span></td>
+                        <td>Default vault</td>
+                        <td>
+                            The name of the SecretManagement vault to retrieve the secret from.
+                            If omitted, the default vault is used.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>When to Use</h3>
+            <p>
+                Call <code>Connect-JuribaAppR</code> once at the start of your session or script.
+                All subsequent cmdlets (<code>Get-JuribaAppRApplication</code>,
+                <code>Start-JuribaAppRPipeline</code>, etc.) will authenticate using the stored
+                connection. This eliminates the need to pass <code>-Instance</code> and
+                <code>-APIKey</code> on every call and avoids scattering credentials throughout
+                your code.
+            </p>
+
+            <h3>Connection Validation</h3>
+            <p>
+                When you call <code>Connect-JuribaAppR</code>, the cmdlet does not simply store
+                credentials &mdash; it actively validates them by making an HTTP GET request to the
+                <code>/api/packaging/upload/packageTypesMatrix</code> endpoint. If the API key is
+                invalid or expired, the server typically returns an HTML page (the Angular SPA)
+                instead of JSON. The cmdlet detects this and throws a clear error rather than
+                allowing silent failures later.
+            </p>
+
+            <div class="callout warning">
+                <strong>Warning:</strong> Avoid passing API keys as plain text strings in saved
+                scripts. The key will appear in your PowerShell console history
+                (<code>Get-History</code>) and may be logged by transcription or auditing tools.
+                Use the <code>-SecretName</code> parameter set for automation, or
+                <code>-SecureAPIKey</code> with <code>Read-Host -AsSecureString</code> for
+                interactive sessions.
+            </div>
+
+            <h3>Examples</h3>
+
+            <h4>Example 1: Connect using SecretManagement (recommended)</h4>
+            <p>
+                Retrieves the API key from a SecretManagement vault by name. This is the most
+                secure approach and is ideal for automation, shared scripts, and CI/CD pipelines.
+            </p>
+            <pre><code class="language-powershell">Connect-JuribaAppR -Instance "https://appr.juriba.com" -SecretName "AppR-Production"</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>Connected to Juriba App Readiness at https://appr.juriba.com</code></pre>
+            </details>
+
+            <h4>Example 2: Connect using a specific vault</h4>
+            <p>
+                When you have multiple vaults registered (e.g. one per team or environment),
+                specify the vault explicitly.
+            </p>
+            <pre><code class="language-powershell">Connect-JuribaAppR -Instance "https://appr-staging.juriba.com" `
+    -SecretName "AppR-Staging" `
+    -VaultName "CompanyVault"</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>Connected to Juriba App Readiness at https://appr-staging.juriba.com</code></pre>
+            </details>
+
+            <h4>Example 3: Connect with a SecureString prompt</h4>
+            <p>
+                Prompts for the API key interactively. The key is masked in the console and never
+                stored in history.
+            </p>
+            <pre><code class="language-powershell">$secure = Read-Host "Enter API Key" -AsSecureString
+Connect-JuribaAppR -Instance "https://appr.juriba.com" -SecureAPIKey $secure</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>Enter API Key: ************
+Connected to Juriba App Readiness at https://appr.juriba.com</code></pre>
+            </details>
+
+            <h4>Example 4: Connect with a plain text key (interactive use only)</h4>
+            <p>
+                Acceptable for one-off interactive testing. Do not use this approach in saved
+                scripts or automation.
+            </p>
+            <pre><code class="language-powershell">Connect-JuribaAppR -Instance "https://appr.juriba.com" -APIKey "WeBP5sp+eQxOi7JYfiRq3t..."</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>Connected to Juriba App Readiness at https://appr.juriba.com</code></pre>
+            </details>
+
+            <h4>Example 5: Handling a failed connection</h4>
+            <p>
+                If the instance URL or API key is incorrect, the cmdlet throws a terminating error.
+            </p>
+            <pre><code class="language-powershell">try {
+    Connect-JuribaAppR -Instance "https://appr.juriba.com" -APIKey "invalid-key"
+}
+catch {
+    Write-Error "Connection failed: $_"
+}</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>Write-Error: Connection failed: Failed to connect to 'https://appr.juriba.com'.
+Please verify the instance URL and API key.
+Error: API key authentication failed - server returned HTML instead of JSON.
+The API key may be invalid or expired.</code></pre>
+            </details>
+
+            <h3>Notes</h3>
+            <ul>
+                <li>
+                    The connection is stored in the <code>$global:appRConnection</code> variable
+                    and persists for the lifetime of the PowerShell session.
+                </li>
+                <li>
+                    Even when you supply a plain text key, it is immediately converted to a
+                    <code>SecureString</code> in memory and the plain text reference is cleared.
+                </li>
+                <li>
+                    The cmdlet validates the connection at call time. If the API key is later
+                    revoked or expires, subsequent requests will fail individually.
+                </li>
+            </ul>
+
+            <hr>
+
+            <!-- ═══════════════════════════════════════════════════════════════
+                 Set-JuribaAppRAPIKey
+                 ═══════════════════════════════════════════════════════════════ -->
+
+            <h2 id="Set-JuribaAppRAPIKey">Set-JuribaAppRAPIKey</h2>
+
+            <p>
+                Stores an App Readiness API key in a PowerShell SecretManagement vault. This is a
+                one-time setup step. After storing the key, use
+                <a href="#Connect-JuribaAppR"><code>Connect-JuribaAppR -SecretName</code></a> to
+                connect without ever exposing the key in your scripts.
+            </p>
+
+            <h3>Syntax</h3>
+
+            <pre><code class="language-powershell"># Parameter set 1 — Plain text input
+Set-JuribaAppRAPIKey
+    -SecretName &lt;String&gt;
+    -APIKey &lt;String&gt;
+    [-VaultName &lt;String&gt;]
+
+# Parameter set 2 — SecureString input
+Set-JuribaAppRAPIKey
+    -SecretName &lt;String&gt;
+    -SecureAPIKey &lt;SecureString&gt;
+    [-VaultName &lt;String&gt;]</code></pre>
+
+            <h3>Parameters</h3>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Required</th>
+                        <th>Default</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>-SecretName</code></td>
+                        <td><code>String</code></td>
+                        <td><span class="badge required">Required</span></td>
+                        <td>&mdash;</td>
+                        <td>
+                            The name to store the secret under. Use a descriptive name like
+                            <code>"AppR-Production"</code> or <code>"AppR-Staging"</code> so it is
+                            clear which instance the key belongs to.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>-APIKey</code></td>
+                        <td><code>String</code></td>
+                        <td><span class="badge required">Required</span> <em>(PlainText set)</em></td>
+                        <td>&mdash;</td>
+                        <td>
+                            The API key as a plain text string. It will be stored encrypted in the
+                            vault. The plain text is cleared from memory immediately after storage.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>-SecureAPIKey</code></td>
+                        <td><code>SecureString</code></td>
+                        <td><span class="badge required">Required</span> <em>(SecureString set)</em></td>
+                        <td>&mdash;</td>
+                        <td>
+                            The API key as a <code>SecureString</code>. Preferred for interactive
+                            use &mdash; combine with
+                            <code>Read-Host -AsSecureString</code> to avoid exposing the key.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>-VaultName</code></td>
+                        <td><code>String</code></td>
+                        <td><span class="badge optional">Optional</span></td>
+                        <td>Default vault</td>
+                        <td>
+                            The vault to store the secret in. If omitted, the default vault is used.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>When to Use</h3>
+            <p>
+                Run this cmdlet once per environment to store an API key securely. After that, your
+                scripts only reference the secret by name &mdash; the actual key never appears in
+                source code, console history, or log files. This is especially important for:
+            </p>
+            <ul>
+                <li>Automation scripts checked into version control</li>
+                <li>Shared scripts used by multiple team members</li>
+                <li>CI/CD pipelines where secrets are injected at runtime</li>
+            </ul>
+
+            <h3>One-Time Vault Setup</h3>
+            <p>
+                If you do not yet have a SecretManagement vault configured, run these commands once
+                to set up the built-in SecretStore provider:
+            </p>
+            <pre><code class="language-powershell"># Install the SecretManagement framework and the local SecretStore provider
+Install-Module Microsoft.PowerShell.SecretManagement -Scope CurrentUser
+Install-Module Microsoft.PowerShell.SecretStore -Scope CurrentUser
+
+# Register a default vault
+Register-SecretVault -Name "Default" -ModuleName Microsoft.PowerShell.SecretStore -DefaultVault</code></pre>
+            <p>
+                The SecretStore provider encrypts secrets on disk using the current user's
+                credentials. For enterprise scenarios, you can register an Azure Key Vault or
+                other provider instead.
+            </p>
+
+            <h3>Examples</h3>
+
+            <h4>Example 1: Store a key with plain text input</h4>
+            <p>
+                Stores the API key in the default vault. After this, the plain text key is no
+                longer needed in your scripts.
+            </p>
+            <pre><code class="language-powershell">Set-JuribaAppRAPIKey -SecretName "AppR-Production" -APIKey "WeBP5sp+eQxOi7JYfiRq3tRGH..."</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>API key stored as 'AppR-Production' in the default vault.
+Connect with: Connect-JuribaAppR -Instance "https://..." -SecretName "AppR-Production"</code></pre>
+            </details>
+
+            <h4>Example 2: Store a key with a SecureString prompt</h4>
+            <p>
+                The key is masked as you type and never appears in the console. This is the safest
+                way to store a key interactively.
+            </p>
+            <pre><code class="language-powershell">Set-JuribaAppRAPIKey -SecretName "AppR-Staging" -SecureAPIKey (Read-Host "API Key" -AsSecureString)</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>API Key: ************
+API key stored as 'AppR-Staging' in the default vault.
+Connect with: Connect-JuribaAppR -Instance "https://..." -SecretName "AppR-Staging"</code></pre>
+            </details>
+
+            <h4>Example 3: Store a key in a specific vault</h4>
+            <p>
+                Useful when you have separate vaults for different teams or security boundaries.
+            </p>
+            <pre><code class="language-powershell">Set-JuribaAppRAPIKey -SecretName "AppR-Dev" -APIKey $key -VaultName "TeamVault"</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>API key stored as 'AppR-Dev' in vault 'TeamVault'.
+Connect with: Connect-JuribaAppR -Instance "https://..." -SecretName "AppR-Dev"</code></pre>
+            </details>
+
+            <h3>Notes</h3>
+            <ul>
+                <li>
+                    This cmdlet is a convenience wrapper around
+                    <code>Set-Secret</code> from the SecretManagement module. You can also call
+                    <code>Set-Secret</code> directly if you prefer.
+                </li>
+                <li>
+                    If the SecretManagement module is not installed, the cmdlet throws a
+                    descriptive error with the exact installation commands.
+                </li>
+                <li>
+                    Plain text key values are cleared from memory (<code>$null</code>) in a
+                    <code>finally</code> block immediately after storage.
+                </li>
+            </ul>
+
+            <hr>
+
+            <!-- ═══════════════════════════════════════════════════════════════
+                 Disconnect-JuribaAppR
+                 ═══════════════════════════════════════════════════════════════ -->
+
+            <h2 id="Disconnect-JuribaAppR">Disconnect-JuribaAppR</h2>
+
+            <p>
+                Clears the stored connection credentials established by
+                <a href="#Connect-JuribaAppR"><code>Connect-JuribaAppR</code></a>. After
+                disconnecting, all cmdlets will require explicit <code>-Instance</code> and
+                <code>-APIKey</code> parameters.
+            </p>
+            <p>
+                <strong>Alias:</strong> <code>Disconnect-AppR</code>
+            </p>
+
+            <h3>Syntax</h3>
+
+            <pre><code class="language-powershell">Disconnect-JuribaAppR</code></pre>
+
+            <h3>Parameters</h3>
+
+            <p>This cmdlet has no parameters.</p>
+
+            <h3>When to Use</h3>
+            <p>
+                Call <code>Disconnect-JuribaAppR</code> when you need to switch to a different
+                instance, rotate credentials within a session, or clean up after a script completes.
+                It removes the <code>$global:appRConnection</code> variable, including the
+                <code>SecureString</code> API key stored in memory.
+            </p>
+
+            <h3>Examples</h3>
+
+            <h4>Example 1: Disconnect from the current instance</h4>
+            <pre><code class="language-powershell">Disconnect-JuribaAppR</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>Disconnected from Juriba App Readiness at https://appr.juriba.com</code></pre>
+            </details>
+
+            <h4>Example 2: Using the alias</h4>
+            <pre><code class="language-powershell">Disconnect-AppR</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>Disconnected from Juriba App Readiness at https://appr.juriba.com</code></pre>
+            </details>
+
+            <h4>Example 3: Switch between instances</h4>
+            <p>
+                Disconnect from one instance and immediately connect to another.
+            </p>
+            <pre><code class="language-powershell"># Disconnect from production
+Disconnect-JuribaAppR
+
+# Connect to staging
+Connect-JuribaAppR -Instance "https://appr-staging.juriba.com" -SecretName "AppR-Staging"</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>Disconnected from Juriba App Readiness at https://appr.juriba.com
+Connected to Juriba App Readiness at https://appr-staging.juriba.com</code></pre>
+            </details>
+
+            <h4>Example 4: Disconnect when no connection exists</h4>
+            <pre><code class="language-powershell">Disconnect-JuribaAppR</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>WARNING: No active App Readiness connection to disconnect.</code></pre>
+            </details>
+
+            <h3>Notes</h3>
+            <ul>
+                <li>
+                    If no connection is active, the cmdlet emits a warning rather than throwing an
+                    error. This makes it safe to call unconditionally in cleanup blocks.
+                </li>
+                <li>
+                    Disconnecting does not revoke the API key &mdash; it only removes it from the
+                    current PowerShell session's memory.
+                </li>
+            </ul>
+
+            <hr>
+
+            <!-- ═══════════════════════════════════════════════════════════════
+                 Best Practices
+                 ═══════════════════════════════════════════════════════════════ -->
+
+            <h2 id="best-practices">Best Practices</h2>
+
+            <h3>Never hardcode API keys</h3>
+            <p>
+                API keys in source code are a security risk. They can leak through version control
+                history, log files, shared terminals, and PowerShell transcription. Always use one
+                of the secure approaches described above.
+            </p>
+            <div class="callout warning">
+                <strong>Do not do this:</strong>
+            </div>
+            <pre><code class="language-powershell"># BAD - key is visible in source code, console history, and version control
+Connect-JuribaAppR -Instance "https://appr.juriba.com" -APIKey "WeBP5sp+eQxOi7JYfiRq3t..."</code></pre>
+            <div class="callout info">
+                <strong>Do this instead:</strong>
+            </div>
+            <pre><code class="language-powershell"># GOOD - key is stored encrypted and referenced by name
+Connect-JuribaAppR -Instance "https://appr.juriba.com" -SecretName "AppR-Production"</code></pre>
+
+            <h3>Use SecretManagement for automation</h3>
+            <p>
+                For unattended scripts, scheduled tasks, and CI/CD pipelines, the SecretManagement
+                approach is the only option that avoids exposing keys. The typical workflow is:
+            </p>
+            <ol>
+                <li>
+                    <strong>One-time setup</strong> (interactive, on the machine that will run the script):
+                    <pre><code class="language-powershell">Set-JuribaAppRAPIKey -SecretName "AppR-Production" -SecureAPIKey (Read-Host "Key" -AsSecureString)</code></pre>
+                </li>
+                <li>
+                    <strong>In your script</strong> (no secrets in code):
+                    <pre><code class="language-powershell">Connect-JuribaAppR -Instance "https://appr.juriba.com" -SecretName "AppR-Production"
+# ... rest of your automation ...</code></pre>
+                </li>
+            </ol>
+
+            <h3>Use per-environment keys</h3>
+            <p>
+                Store separate secrets for each environment using descriptive names. This prevents
+                accidentally running a production script against a staging instance (or vice versa).
+            </p>
+            <pre><code class="language-powershell"># Store keys for each environment
+Set-JuribaAppRAPIKey -SecretName "AppR-Production" -SecureAPIKey (Read-Host "Prod Key" -AsSecureString)
+Set-JuribaAppRAPIKey -SecretName "AppR-Staging"    -SecureAPIKey (Read-Host "Staging Key" -AsSecureString)
+Set-JuribaAppRAPIKey -SecretName "AppR-Dev"        -SecureAPIKey (Read-Host "Dev Key" -AsSecureString)
+
+# Connect to the appropriate environment
+$env = "Production"  # or from a config file / parameter
+Connect-JuribaAppR -Instance "https://appr.juriba.com" -SecretName "AppR-$env"</code></pre>
+
+            <h3>How the connection works internally</h3>
+            <p>
+                Understanding the internals helps with troubleshooting and explains why the module
+                behaves the way it does.
+            </p>
+            <ol>
+                <li>
+                    <strong>Key resolution:</strong> Regardless of which parameter set you use
+                    (plain text, SecureString, or SecretManagement), the cmdlet resolves the input
+                    to a plain text key temporarily for the validation request.
+                </li>
+                <li>
+                    <strong>Validation:</strong> An HTTP GET request is made to
+                    <code>/api/packaging/upload/packageTypesMatrix</code> with the API key in the
+                    <code>x-api-key</code> header. The cmdlet checks that the response is JSON
+                    (not the Angular SPA HTML fallback that indicates an authentication failure).
+                </li>
+                <li>
+                    <strong>Storage:</strong> The key is converted to a <code>SecureString</code>
+                    and stored in <code>$global:appRConnection</code> alongside the instance URL
+                    and connection timestamp. The plain text key reference is immediately set to
+                    <code>$null</code>.
+                </li>
+                <li>
+                    <strong>Usage:</strong> Other cmdlets in the module check for
+                    <code>$global:appRConnection</code>. If present, they extract the instance URL
+                    and decrypt the <code>SecureString</code> for each API call. If absent, they
+                    require <code>-Instance</code> and <code>-APIKey</code> as explicit parameters.
+                </li>
+                <li>
+                    <strong>Cleanup:</strong> <code>Disconnect-JuribaAppR</code> removes the
+                    global variable, releasing the <code>SecureString</code> from memory.
+                </li>
+            </ol>
+
+            <p>
+                The <code>$global:appRConnection</code> hashtable contains the following keys:
+            </p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Key</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>Instance</code></td>
+                        <td><code>String</code></td>
+                        <td>The base URL of the connected instance (trailing slash removed).</td>
+                    </tr>
+                    <tr>
+                        <td><code>SecureAPIKey</code></td>
+                        <td><code>SecureString</code></td>
+                        <td>The API key encrypted in memory. Never stored as plain text.</td>
+                    </tr>
+                    <tr>
+                        <td><code>ConnectedAt</code></td>
+                        <td><code>DateTime</code></td>
+                        <td>The timestamp when the connection was established.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+        </div>
+        <div class="page-nav">
+            <a href="getting-started.html" class="prev">&larr; Getting Started</a>
+            <a href="cmdlets-instance-config.html" class="next">Instance Configuration &rarr;</a>
+        </div>
+    </main>
+    <script src="js/nav.js"></script>
+    <script src="js/copy-code.js"></script>
+</body>
+</html>

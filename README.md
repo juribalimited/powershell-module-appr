@@ -226,23 +226,23 @@ Application name, manufacturer, and version are resolved in order:
 
 ## Use Case Coverage
 
-| Priority | Use Case | Cmdlets |
-|----------|----------|---------|
-| Need | Get list of applications and package status | `Get-JuribaAppRApplicationList`, `Get-JuribaAppRApplicationPackage` |
-| Need | Add an application with uploaded file | `Send-JuribaAppRSetupFile`, `New-JuribaAppRApplication` |
-| Need | Assign to requester | `Set-JuribaAppRApplicationOwner` |
-| Need | Specify override name | `Set-JuribaAppRApplication` |
-| Need | Request a smoke test | `Start-JuribaAppRSmokeTest` |
-| Need | Interrogate VM pools | `Get-JuribaAppRVMGroup` |
-| Need | Pull back test results/warnings/failures | `Get-JuribaAppRTestResult`, `Get-JuribaAppRTestStats` |
-| Need | Interrogate integration options | `Get-JuribaAppRIntegrationConnector` |
-| Need | Publish to Intune | `Invoke-JuribaAppRPublishIntune` |
-| Need | Pull back publishing status | `Get-JuribaAppRApplicationStatus` |
-| Need | Pull back application status | `Get-JuribaAppRApplicationStatus` |
-| Need | Pull back QR/UAT results | `Get-JuribaAppRQualityReview` |
-| Need | Pull back assignment info | `Get-JuribaAppRApplication` |
-| Want | Specify override command line | `Set-JuribaAppRApplicationCommandLine` |
-| Want | Search Juriba KB | `Search-JuribaAppRKnowledgeBase` |
+| Use Case | Cmdlets |
+|----------|---------|
+| Get list of applications and package status | `Get-JuribaAppRApplicationList`, `Get-JuribaAppRApplicationPackage` |
+| Add an application with uploaded file | `Send-JuribaAppRSetupFile`, `New-JuribaAppRApplication` |
+| Assign to requester | `Set-JuribaAppRApplicationOwner` |
+| Specify override name | `Set-JuribaAppRApplication` |
+| Specify override command line | `Set-JuribaAppRApplicationCommandLine` |
+| Request a smoke test | `Start-JuribaAppRSmokeTest` |
+| Interrogate VM pools | `Get-JuribaAppRVMGroup` |
+| Pull back test results/warnings/failures | `Get-JuribaAppRTestResult`, `Get-JuribaAppRTestStats` |
+| Interrogate integration options | `Get-JuribaAppRIntegrationConnector` |
+| Publish to Intune | `Invoke-JuribaAppRPublishIntune` |
+| Pull back publishing status | `Get-JuribaAppRApplicationStatus` |
+| Pull back application status | `Get-JuribaAppRApplicationStatus` |
+| Pull back QR/UAT results | `Get-JuribaAppRQualityReview` |
+| Pull back assignment info | `Get-JuribaAppRApplication` |
+| Search Juriba KB | `Search-JuribaAppRKnowledgeBase` |
 
 ## Contributing
 

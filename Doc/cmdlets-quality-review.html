@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quality Review - Juriba.AppR Documentation</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav id="sidebar"></nav>
+    <main>
+        <div class="breadcrumb"><a href="index.html">Home</a> &gt; Cmdlet Reference &gt; Quality Review</div>
+        <div class="content">
+            <h1>Quality Review Cmdlets</h1>
+            <p>Quality Review (QR) is the final gate before an application is published. During QR, a reviewer inspects the packaged application against a checklist of criteria -- correct install/uninstall behaviour, shortcut placement, file associations, registry hygiene, and more. These cmdlets retrieve the QR status, checklist results, and optional screenshot evidence for an application.</p>
+
+            <!-- ================================================ -->
+            <h2 id="Get-JuribaAppRQualityReview">Get-JuribaAppRQualityReview</h2>
+
+            <h3>Synopsis</h3>
+            <p>Gets quality review results for an application, including checklist status and optional screenshot data.</p>
+
+            <h3>Syntax</h3>
+            <pre><code class="language-powershell"># QR status only
+Get-JuribaAppRQualityReview -AppId &lt;Int32&gt;
+
+# QR status filtered by package type
+Get-JuribaAppRQualityReview -AppId &lt;Int32&gt; -PackageType &lt;String&gt;
+
+# QR status with screenshots
+Get-JuribaAppRQualityReview -AppId &lt;Int32&gt; -PackageType &lt;String&gt; -IncludeScreenshots</code></pre>
+
+            <h3>Parameters</h3>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>Type</th><th>Status</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>-Instance</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The URL of the App Readiness instance. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-APIKey</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The API key for authentication. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-AppId</code></td>
+                        <td>Int32</td>
+                        <td><span class="badge req">Required</span></td>
+                        <td>The unique identifier of the application.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-PackageType</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The package type to get QR results for (e.g. <code>Msi</code>, <code>Msix</code>, <code>IntuneWin</code>, <code>AppV</code>). Required when using <code>-IncludeScreenshots</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-IncludeScreenshots</code></td>
+                        <td>Switch</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>When specified, retrieves screenshot data captured during the QR process. Requires <code>-PackageType</code> to be set.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>The QR Checklist</h3>
+            <p>The quality review checklist is a configurable set of verification items that reviewers work through after an application has been packaged and tested. Typical checklist items include:</p>
+            <ul>
+                <li><strong>Install verification</strong> -- the package installs silently without errors.</li>
+                <li><strong>Uninstall verification</strong> -- the package removes cleanly with no orphaned files or registry entries.</li>
+                <li><strong>Shortcut validation</strong> -- Start Menu and Desktop shortcuts are created in the correct locations.</li>
+                <li><strong>File association check</strong> -- registered file types open with the correct application.</li>
+                <li><strong>Service and driver check</strong> -- any services or drivers installed are running as expected.</li>
+                <li><strong>Screenshot evidence</strong> -- visual proof that the application launches and displays correctly.</li>
+            </ul>
+            <p>Each checklist item is marked as Passed, Failed, or Not Reviewed. The overall QR status is derived from the individual item results.</p>
+
+            <h3>When to Use</h3>
+            <p>Use this cmdlet to check whether an application has passed quality review, to retrieve the detailed checklist results for audit or reporting purposes, or to pull screenshot evidence into an automated compliance report. In a typical pipeline, you would call this after smoke testing completes and the application enters the QR stage.</p>
+
+            <h3>Examples</h3>
+
+            <h4>Example 1 -- Get QR status for an application</h4>
+            <pre><code class="language-powershell">Get-JuribaAppRQualityReview -AppId 101</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>AppId          : 101
+Name           : 7-Zip
+QRStatus       : Passed
+ReviewedBy     : jsmith
+ReviewedDate   : 2026-03-30T11:45:00Z
+ChecklistItems : {Install: Passed, Uninstall: Passed, Shortcuts: Passed,
+                  FileAssociations: Passed, Services: NotApplicable}</code></pre>
+            </details>
+
+            <h4>Example 2 -- Get QR results for a specific package type</h4>
+            <pre><code class="language-powershell">Get-JuribaAppRQualityReview -AppId 204 -PackageType Msi</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>AppId          : 204
+Name           : Google Chrome Enterprise
+PackageType    : Msi
+QRStatus       : Failed
+ReviewedBy     : amorgan
+ReviewedDate   : 2026-03-29T16:30:22Z
+ChecklistItems : {Install: Passed, Uninstall: Failed, Shortcuts: Passed,
+                  FileAssociations: Passed, Services: Passed}
+FailureNotes   : Uninstall leaves Chrome updater service registered in HKLM.</code></pre>
+            </details>
+
+            <h4>Example 3 -- Get QR results with screenshots</h4>
+            <pre><code class="language-powershell">Get-JuribaAppRQualityReview -AppId 312 -PackageType Msi -IncludeScreenshots</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>AppId          : 312
+Name           : Notepad++
+PackageType    : Msi
+QRStatus       : Passed
+ReviewedBy     : bkelly
+ReviewedDate   : 2026-03-31T09:12:48Z
+ChecklistItems : {Install: Passed, Uninstall: Passed, Shortcuts: Passed,
+                  FileAssociations: Passed, Services: NotApplicable}
+Screenshots    : {@{Name=post-install-desktop.png; Size=284672;
+                    ContentType=image/png; Data=iVBORw0KGgoAAAANSUhEUg...},
+                  @{Name=app-launch-main-window.png; Size=198400;
+                    ContentType=image/png; Data=iVBORw0KGgoAAAANSUhEUg...},
+                  @{Name=post-uninstall-clean.png; Size=156928;
+                    ContentType=image/png; Data=iVBORw0KGgoAAAANSUhEUg...}}</code></pre>
+            </details>
+
+            <h4>Example 4 -- Save screenshots to disk</h4>
+            <pre><code class="language-powershell">$qr = Get-JuribaAppRQualityReview -AppId 312 -PackageType Msi -IncludeScreenshots
+foreach ($shot in $qr.Screenshots) {
+    $bytes = [Convert]::FromBase64String($shot.Data)
+    [IO.File]::WriteAllBytes("C:\QR-Evidence\$($shot.Name)", $bytes)
+    Write-Host "Saved $($shot.Name) ($($shot.Size) bytes)"
+}</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>Saved post-install-desktop.png (284672 bytes)
+Saved app-launch-main-window.png (198400 bytes)
+Saved post-uninstall-clean.png (156928 bytes)</code></pre>
+            </details>
+
+            <div style="background: #f4f6f9; border-left: 4px solid #1a5276; padding: 1rem 1.25rem; margin: 2rem 0; border-radius: 0 4px 4px 0;">
+                <strong>Note on screenshot data:</strong> When <code>-IncludeScreenshots</code> is used, the <code>Screenshots</code> property contains an array of objects. Each object has a <code>Name</code>, <code>Size</code> (in bytes), <code>ContentType</code> (MIME type), and <code>Data</code> field. The <code>Data</code> field holds the image as a Base64-encoded string. To write the image to disk, decode it with <code>[Convert]::FromBase64String()</code> as shown in Example 4.
+            </div>
+
+            <div style="background: #fff8e1; border-left: 4px solid #f0ad4e; padding: 1rem 1.25rem; margin: 2rem 0; border-radius: 0 4px 4px 0;">
+                <strong>Important:</strong> The <code>-IncludeScreenshots</code> switch requires <code>-PackageType</code> to be specified. If <code>-IncludeScreenshots</code> is used without <code>-PackageType</code>, the screenshots are not retrieved and only the base QR status is returned.
+            </div>
+        </div>
+        <div class="page-nav">
+            <a href="cmdlets-testing.html" class="prev">&larr; Testing</a>
+            <a href="cmdlets-publishing.html" class="next">Publishing &rarr;</a>
+        </div>
+    </main>
+    <script src="js/nav.js"></script>
+    <script src="js/copy-code.js"></script>
+</body>
+</html>

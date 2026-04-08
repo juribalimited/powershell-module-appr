@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload &amp; Create - Juriba.AppR Documentation</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav id="sidebar"></nav>
+    <main>
+        <div class="breadcrumb"><a href="index.html">Home</a> &gt; Cmdlet Reference &gt; Upload &amp; Create</div>
+        <div class="content">
+            <h1>Upload &amp; Create Cmdlets</h1>
+            <p>These cmdlets handle the full lifecycle of getting an installer into App Readiness and creating an application from it: chunked upload, application creation with metadata and command detection, and polling until the workflow reaches a terminal state.</p>
+
+            <!-- ──────────────────────────────────────────────────────── -->
+            <h2 id="send-juribaapprsetupfile">Send-JuribaAppRSetupFile</h2>
+
+            <p>Uploads a setup file (MSI, EXE, ZIP, or any supported installer) to App Readiness using chunked upload. The file is split into configurable chunks, uploaded individually, and combined server-side. Returns an object containing the upload UUID and file metadata needed by <code>New-JuribaAppRApplication</code>.</p>
+
+            <h3>Syntax</h3>
+            <pre><code class="language-powershell">Send-JuribaAppRSetupFile
+    -FilePath &lt;String&gt;
+    [-Instance &lt;String&gt;]
+    [-APIKey &lt;String&gt;]
+    [-ChunkSizeMB &lt;Int32&gt;]
+    [-Protected]</code></pre>
+
+            <h3>Parameters</h3>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>Type</th><th>Status</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>-FilePath</code></td><td>String</td><td><span style="color:#c0392b;font-weight:bold;">Required</span></td><td>Full path to the setup file to upload. The file must exist on disk.</td></tr>
+                    <tr><td><code>-Instance</code></td><td>String</td><td><span style="color:#7f8c8d;">Optional</span></td><td>Instance URL. Not required if connected via <code>Connect-JuribaAppR</code>.</td></tr>
+                    <tr><td><code>-APIKey</code></td><td>String</td><td><span style="color:#7f8c8d;">Optional</span></td><td>API key. Not required if connected via <code>Connect-JuribaAppR</code>.</td></tr>
+                    <tr><td><code>-ChunkSizeMB</code></td><td>Int32</td><td><span style="color:#7f8c8d;">Optional</span></td><td>Size of each upload chunk in megabytes. Default: <strong>2</strong>. Valid range: 1-100. Increase for faster uploads on high-bandwidth connections.</td></tr>
+                    <tr><td><code>-Protected</code></td><td>Switch</td><td><span style="color:#7f8c8d;">Optional</span></td><td>Uploads to the protected endpoint for files requiring additional security handling.</td></tr>
+                </tbody>
+            </table>
+
+            <h3>Return Object</h3>
+            <p>The cmdlet returns a <code>PSCustomObject</code> with the following properties:</p>
+            <table>
+                <thead>
+                    <tr><th>Property</th><th>Type</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>Uuid</code></td><td>String</td><td>Unique upload identifier. Pass this to <code>New-JuribaAppRApplication</code>.</td></tr>
+                    <tr><td><code>FileName</code></td><td>String</td><td>Original file name of the uploaded file.</td></tr>
+                    <tr><td><code>FileSize</code></td><td>Int64</td><td>Size of the file in bytes.</td></tr>
+                    <tr><td><code>TotalChunks</code></td><td>Int32</td><td>Number of chunks the file was split into.</td></tr>
+                    <tr><td><code>ProductName</code></td><td>String</td><td>Product name extracted from the file's <code>FileVersionInfo</code>. May be <code>$null</code> for non-PE files.</td></tr>
+                    <tr><td><code>CompanyName</code></td><td>String</td><td>Company/manufacturer extracted from the file's <code>FileVersionInfo</code>.</td></tr>
+                    <tr><td><code>ProductVersion</code></td><td>String</td><td>Version extracted from the file's <code>FileVersionInfo</code>.</td></tr>
+                </tbody>
+            </table>
+
+            <h3>When to Use</h3>
+            <ul>
+                <li>Use <code>-ChunkSizeMB</code> when uploading large files (hundreds of MB or more) on a fast network to reduce the number of HTTP round-trips.</li>
+                <li>Use <code>-Protected</code> when uploading files that contain sensitive data or require elevated security handling on the server.</li>
+            </ul>
+
+            <h3>Examples</h3>
+
+            <h4>Example 1: Basic upload</h4>
+            <pre><code class="language-powershell">$upload = Send-JuribaAppRSetupFile -FilePath "C:\Installers\Firefox-Setup-115.0.exe"
+$upload</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>Uuid           : a3f7c9e2-81d4-4b6a-9e02-5c8d1f3a7b60
+FileName       : Firefox-Setup-115.0.exe
+FileSize       : 56440320
+TotalChunks    : 27
+ProductName    : Firefox
+CompanyName    : Mozilla Corporation
+ProductVersion : 115.0</code></pre>
+            </details>
+
+            <h4>Example 2: Large file with custom chunk size</h4>
+            <pre><code class="language-powershell">$upload = Send-JuribaAppRSetupFile -FilePath "C:\Installers\BigApp-Setup.exe" -ChunkSizeMB 10
+$upload | Format-List Uuid, FileName, FileSize, TotalChunks</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>Uuid        : e8b2d4a1-3c6f-4e9a-b71d-2a5f8c0e9d34
+FileName    : BigApp-Setup.exe
+FileSize    : 524288000
+TotalChunks : 50</code></pre>
+            </details>
+
+            <div style="background: #f4f6f9; border-left: 4px solid #1a5276; padding: 1rem 1.25rem; margin: 2rem 0; border-radius: 0 4px 4px 0;">
+                <strong>Note:</strong> Progress is reported via <code>Write-Progress</code> during the upload. Use <code>-Verbose</code> to see detailed chunk-by-chunk logging including byte offsets and the combine request.
+            </div>
+
+            <!-- ──────────────────────────────────────────────────────── -->
+            <h2 id="new-juribaapprapplication">New-JuribaAppRApplication</h2>
+
+            <p>Creates a new application in App Readiness from a previously uploaded setup file. This is the most complex cmdlet in the module: it reads Default Settings from the instance, calls server-side metadata extraction, queries the command suggestion engine, and submits the creation request. The application is created asynchronously -- use <code>Watch-JuribaAppRApplicationCreation</code> to wait for the record to appear, then <code>Watch-JuribaAppRApplicationStatus</code> to track the packaging workflow.</p>
+
+            <h3>Syntax</h3>
+            <pre><code class="language-powershell">New-JuribaAppRApplication
+    -Uuid &lt;String&gt;
+    -FileName &lt;String&gt;
+    -FileSize &lt;Int64&gt;
+    -TotalChunks &lt;Int32&gt;
+    [-Instance &lt;String&gt;]
+    [-APIKey &lt;String&gt;]
+    [-Name &lt;String&gt;]
+    [-Manufacturer &lt;String&gt;]
+    [-Version &lt;String&gt;]
+    [-CommandLine &lt;String&gt;]
+    [-RunImmediately]
+    [-VMGroupId &lt;Int32&gt;]
+    [-VMGroupForTestingId &lt;Int32&gt;]
+    [-PrePackaged]
+    [-SkipMetadataExtraction]
+    [-SkipCommandSuggestion]</code></pre>
+
+            <h3>Parameters</h3>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>Type</th><th>Status</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>-Uuid</code></td><td>String</td><td><span style="color:#c0392b;font-weight:bold;">Required</span></td><td>Upload UUID returned by <code>Send-JuribaAppRSetupFile</code>.</td></tr>
+                    <tr><td><code>-FileName</code></td><td>String</td><td><span style="color:#c0392b;font-weight:bold;">Required</span></td><td>Original file name. Returned by <code>Send-JuribaAppRSetupFile</code>.</td></tr>
+                    <tr><td><code>-FileSize</code></td><td>Int64</td><td><span style="color:#c0392b;font-weight:bold;">Required</span></td><td>File size in bytes. Returned by <code>Send-JuribaAppRSetupFile</code>.</td></tr>
+                    <tr><td><code>-TotalChunks</code></td><td>Int32</td><td><span style="color:#c0392b;font-weight:bold;">Required</span></td><td>Number of upload chunks. Returned by <code>Send-JuribaAppRSetupFile</code>.</td></tr>
+                    <tr><td><code>-Instance</code></td><td>String</td><td><span style="color:#7f8c8d;">Optional</span></td><td>Instance URL override.</td></tr>
+                    <tr><td><code>-APIKey</code></td><td>String</td><td><span style="color:#7f8c8d;">Optional</span></td><td>API key override.</td></tr>
+                    <tr><td><code>-Name</code></td><td>String</td><td><span style="color:#7f8c8d;">Optional</span></td><td>Application name. When omitted, the server-side metadata extraction API detects it from the binary; if that fails, the file name (without extension) is used.</td></tr>
+                    <tr><td><code>-Manufacturer</code></td><td>String</td><td><span style="color:#7f8c8d;">Optional</span></td><td>Manufacturer/vendor name. Falls back to server metadata, then "Unknown".</td></tr>
+                    <tr><td><code>-Version</code></td><td>String</td><td><span style="color:#7f8c8d;">Optional</span></td><td>Application version. Falls back to server metadata, then "1.0".</td></tr>
+                    <tr><td><code>-CommandLine</code></td><td>String</td><td><span style="color:#7f8c8d;">Optional</span></td><td>Explicit silent install command line. When omitted, the command suggestion API auto-detects it.</td></tr>
+                    <tr><td><code>-RunImmediately</code></td><td>Switch</td><td><span style="color:#7f8c8d;">Optional</span></td><td>Begin automated packaging immediately after creation.</td></tr>
+                    <tr><td><code>-VMGroupId</code></td><td>Int32</td><td><span style="color:#7f8c8d;">Optional</span></td><td>VM group for packaging. Falls back to the instance's Default Settings.</td></tr>
+                    <tr><td><code>-VMGroupForTestingId</code></td><td>Int32</td><td><span style="color:#7f8c8d;">Optional</span></td><td>VM group for smoke testing. Falls back to the instance's Default Settings.</td></tr>
+                    <tr><td><code>-PrePackaged</code></td><td>Switch</td><td><span style="color:#7f8c8d;">Optional</span></td><td>Indicates the file is already a final package (e.g. MSI) that does not need repackaging.</td></tr>
+                    <tr><td><code>-SkipMetadataExtraction</code></td><td>Switch</td><td><span style="color:#7f8c8d;">Optional</span></td><td>Skips the server-side metadata extraction API call.</td></tr>
+                    <tr><td><code>-SkipCommandSuggestion</code></td><td>Switch</td><td><span style="color:#7f8c8d;">Optional</span></td><td>Skips the command suggestion API call.</td></tr>
+                </tbody>
+            </table>
+
+            <h3>When to Include Optional Parameters</h3>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>When to include</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>-Name</code>, <code>-Manufacturer</code>, <code>-Version</code></td><td>When overriding server-side extraction -- for example, when the binary metadata is missing, incorrect, or you want a specific display name in App Readiness.</td></tr>
+                    <tr><td><code>-CommandLine</code></td><td>When you already know the correct silent install command and want to bypass the suggestion engine entirely.</td></tr>
+                    <tr><td><code>-RunImmediately</code></td><td>In almost all automation scenarios. Without this flag, the application is created but sits idle until manually triggered.</td></tr>
+                    <tr><td><code>-VMGroupId</code>, <code>-VMGroupForTestingId</code></td><td>When targeting a specific VM pool instead of the instance-wide defaults. Useful in multi-tenant or multi-environment setups.</td></tr>
+                    <tr><td><code>-PrePackaged</code></td><td>When uploading an already-packaged MSI that does not need repackaging. The file is imported directly as a finished package.</td></tr>
+                    <tr><td><code>-SkipMetadataExtraction</code>, <code>-SkipCommandSuggestion</code></td><td>When you provide all metadata and the command line explicitly, and want to avoid the extra API calls.</td></tr>
+                </tbody>
+            </table>
+
+            <h3>Wrapping vs Repackaging</h3>
+            <p>The cmdlet automatically determines the packaging workflow based on your instance's Default Settings output format bitmask:</p>
+            <ul>
+                <li><strong>Repackaging (<code>from=0</code>):</strong> The installer is executed inside a VM and captured. Required when the output format includes MSI, MSIX, or MSIX App Attach. A VM group must be available.</li>
+                <li><strong>Wrapping (<code>from=4</code>):</strong> The installer is wrapped into an output package without VM execution. Used when the output format only includes IntuneWin or PSADT. No VM is required.</li>
+            </ul>
+            <p>You do not need to set this manually -- the cmdlet reads the bitmask from Default Settings and selects the correct workflow.</p>
+
+            <h3>Command Suggestion Priority</h3>
+            <p>When <code>-CommandLine</code> is not provided, the cmdlet calls the command suggestion API. The engine returns candidates from multiple sources, ranked by priority:</p>
+            <ol>
+                <li><strong>Juriba Knowledge Base (source 3)</strong> -- commands proven successful across the Juriba customer base. Highest priority.</li>
+                <li><strong>Programmatic detection (source 1)</strong> -- rules-based detection from file naming conventions and installer type.</li>
+                <li><strong>AI-generated (source 2)</strong> -- machine-learning suggestions. Lowest priority, used as a fallback.</li>
+            </ol>
+            <p>Within each source, the engine prefers commands with a previous success record (<code>lastResult &gt; 0</code>), then ranks by success rate.</p>
+
+            <h3>Examples</h3>
+
+            <h4>Example 1: Minimal -- auto-detect everything</h4>
+            <pre><code class="language-powershell">$upload = Send-JuribaAppRSetupFile -FilePath "C:\Installers\7z2407-x64.exe"
+$app = New-JuribaAppRApplication -Uuid $upload.Uuid -FileName $upload.FileName `
+    -FileSize $upload.FileSize -TotalChunks $upload.TotalChunks -RunImmediately</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>VERBOSE: Default Settings: VMGroup=1, TestGroup=2, OutputBitmask=2
+VERBOSE: Extracting metadata from server for upload a3f7c9e2-81d4-4b6a-9e02-5c8d1f3a7b60...
+VERBOSE: Server metadata: Name=7-Zip, Mfg=Igor Pavlov, Ver=24.07
+VERBOSE: Getting command suggestions for 7z2407-x64.exe...
+VERBOSE: Selected install command [JuribaKB]: 7z2407-x64.exe /S
+VERBOSE: Output bitmask=2, needsRepackaging=False, matrixFrom=4
+
+Uuid     : a3f7c9e2-81d4-4b6a-9e02-5c8d1f3a7b60
+FileName : 7z2407-x64.exe
+Status   : Submitted</code></pre>
+            </details>
+
+            <h4>Example 2: Full metadata and command overrides</h4>
+            <pre><code class="language-powershell">$upload = Send-JuribaAppRSetupFile -FilePath "C:\Installers\CustomApp-Setup.exe"
+$app = New-JuribaAppRApplication -Uuid $upload.Uuid -FileName $upload.FileName `
+    -FileSize $upload.FileSize -TotalChunks $upload.TotalChunks `
+    -Name "Custom App" -Manufacturer "Contoso Ltd" -Version "3.1.0" `
+    -CommandLine "CustomApp-Setup.exe /quiet /norestart" `
+    -SkipMetadataExtraction -SkipCommandSuggestion -RunImmediately</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>VERBOSE: Default Settings: VMGroup=1, TestGroup=2, OutputBitmask=2
+VERBOSE: Output bitmask=2, needsRepackaging=False, matrixFrom=4
+VERBOSE: Submitting create request to api/apm/application/async...
+
+Uuid     : e8b2d4a1-3c6f-4e9a-b71d-2a5f8c0e9d34
+FileName : CustomApp-Setup.exe
+Status   : Submitted</code></pre>
+            </details>
+
+            <h4>Example 3: Pre-packaged MSI</h4>
+            <pre><code class="language-powershell">$upload = Send-JuribaAppRSetupFile -FilePath "C:\Packages\ReportViewer.msi"
+$app = New-JuribaAppRApplication -Uuid $upload.Uuid -FileName $upload.FileName `
+    -FileSize $upload.FileSize -TotalChunks $upload.TotalChunks -PrePackaged</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>VERBOSE: Default Settings: VMGroup=1, TestGroup=2, OutputBitmask=2
+VERBOSE: Extracting metadata from server for upload c4a91b3e-7d2f-48c5-a6e8-3f1d5b7c9a42...
+VERBOSE: Server metadata: Name=ReportViewer, Mfg=Microsoft, Ver=10.0.40219
+VERBOSE: Getting command suggestions for ReportViewer.msi...
+VERBOSE: Selected install command [Programmatic]: msiexec /i "ReportViewer.msi" /qn
+VERBOSE: Submitting create request to api/apm/application/prePackaged/async...
+
+Uuid     : c4a91b3e-7d2f-48c5-a6e8-3f1d5b7c9a42
+FileName : ReportViewer.msi
+Status   : Submitted</code></pre>
+            </details>
+
+            <div style="background: #f4f6f9; border-left: 4px solid #1a5276; padding: 1rem 1.25rem; margin: 2rem 0; border-radius: 0 4px 4px 0;">
+                <strong>Note:</strong> The uninstall command is intentionally set to an empty string by the cmdlet. The App Readiness product handles uninstall detection during the packaging phase. Sending a non-empty uninstall value can cause the packaging VM to hang.
+            </div>
+
+            <!-- ──────────────────────────────────────────────────────── -->
+            <h2 id="get-juribaapprapplicationcreationstate">Get-JuribaAppRApplicationCreationState</h2>
+
+            <p>Polls the asynchronous creation state of an application. After calling <code>New-JuribaAppRApplication</code>, the application record is created in the background. Use this cmdlet to check whether creation has completed, is still in progress, or has failed.</p>
+
+            <h3>Syntax</h3>
+            <pre><code class="language-powershell">Get-JuribaAppRApplicationCreationState
+    -UploadId &lt;String&gt;
+    [-Instance &lt;String&gt;]
+    [-APIKey &lt;String&gt;]</code></pre>
+
+            <h3>Parameters</h3>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>Type</th><th>Status</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>-UploadId</code></td><td>String</td><td><span style="color:#c0392b;font-weight:bold;">Required</span></td><td>The upload UUID returned by <code>Send-JuribaAppRSetupFile</code> or <code>New-JuribaAppRApplication</code>.</td></tr>
+                    <tr><td><code>-Instance</code></td><td>String</td><td><span style="color:#7f8c8d;">Optional</span></td><td>Instance URL override.</td></tr>
+                    <tr><td><code>-APIKey</code></td><td>String</td><td><span style="color:#7f8c8d;">Optional</span></td><td>API key override.</td></tr>
+                </tbody>
+            </table>
+
+            <h3>When to Use</h3>
+            <p>Use this cmdlet when you need a single point-in-time check of creation progress. For automated scripts that need to wait until creation finishes, prefer <code>Watch-JuribaAppRApplicationCreation</code> instead.</p>
+
+            <h3>Examples</h3>
+
+            <h4>Example 1: Check creation state</h4>
+            <pre><code class="language-powershell">Get-JuribaAppRApplicationCreationState -UploadId "a3f7c9e2-81d4-4b6a-9e02-5c8d1f3a7b60"</code></pre>
+            <details>
+                <summary>Sample Output -- In Progress</summary>
+                <pre><code>status        : InProgress
+applicationId : 0
+message       :</code></pre>
+            </details>
+            <details>
+                <summary>Sample Output -- Completed</summary>
+                <pre><code>status        : Completed
+applicationId : 619
+message       :</code></pre>
+            </details>
+            <details>
+                <summary>Sample Output -- Failed</summary>
+                <pre><code>status  : Failed
+applicationId : 0
+message : Upload identifier not found or expired.</code></pre>
+            </details>
+
+            <div style="background: #f4f6f9; border-left: 4px solid #1a5276; padding: 1rem 1.25rem; margin: 2rem 0; border-radius: 0 4px 4px 0;">
+                <strong>Note:</strong> This cmdlet calls <code>GET api/apm/application/creation/{UploadId}/state</code>. The creation state is distinct from the packaging workflow state -- it only tracks whether the application record itself has been written to the database.
+            </div>
+
+            <!-- ──────────────────────────────────────────────────────── -->
+            <h2 id="watch-juribaapprapplicationcreation">Watch-JuribaAppRApplicationCreation</h2>
+
+            <p>Polls the creation state of an application at a defined interval until it completes, fails, or times out. This is the blocking equivalent of repeatedly calling <code>Get-JuribaAppRApplicationCreationState</code>. Returns the final state object, which includes the <code>applicationId</code> on success.</p>
+
+            <h3>Syntax</h3>
+            <pre><code class="language-powershell">Watch-JuribaAppRApplicationCreation
+    -UploadId &lt;String&gt;
+    [-Instance &lt;String&gt;]
+    [-APIKey &lt;String&gt;]
+    [-IntervalSeconds &lt;Int32&gt;]
+    [-TimeoutMinutes &lt;Int32&gt;]
+    [-Quiet]</code></pre>
+
+            <h3>Parameters</h3>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>Type</th><th>Status</th><th>Default</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>-UploadId</code></td><td>String</td><td><span style="color:#c0392b;font-weight:bold;">Required</span></td><td>--</td><td>Upload UUID from <code>Send-JuribaAppRSetupFile</code>.</td></tr>
+                    <tr><td><code>-Instance</code></td><td>String</td><td><span style="color:#7f8c8d;">Optional</span></td><td>--</td><td>Instance URL override.</td></tr>
+                    <tr><td><code>-APIKey</code></td><td>String</td><td><span style="color:#7f8c8d;">Optional</span></td><td>--</td><td>API key override.</td></tr>
+                    <tr><td><code>-IntervalSeconds</code></td><td>Int32</td><td><span style="color:#7f8c8d;">Optional</span></td><td>300</td><td>Seconds between polls. Valid range: 10-3600.</td></tr>
+                    <tr><td><code>-TimeoutMinutes</code></td><td>Int32</td><td><span style="color:#7f8c8d;">Optional</span></td><td>120</td><td>Maximum minutes to poll. Valid range: 1-1440.</td></tr>
+                    <tr><td><code>-Quiet</code></td><td>Switch</td><td><span style="color:#7f8c8d;">Optional</span></td><td>--</td><td>Suppress console output; only return the final object.</td></tr>
+                </tbody>
+            </table>
+
+            <h3>When to Use</h3>
+            <p>Use this in automation pipelines between <code>New-JuribaAppRApplication</code> and <code>Watch-JuribaAppRApplicationStatus</code>. Creation typically completes within a few minutes but can take longer under heavy server load. For quick interactive checks, <code>Get-JuribaAppRApplicationCreationState</code> is lighter weight.</p>
+
+            <h3>Examples</h3>
+
+            <h4>Example 1: Default polling</h4>
+            <pre><code class="language-powershell">$result = Watch-JuribaAppRApplicationCreation -UploadId $upload.Uuid
+$result</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>Watching application creation for upload a3f7c9e2-81d4-4b6a-9e02-5c8d1f3a7b60
+Polling every 300 seconds (timeout: 120 minutes)
+[14:02:15] Poll #1 (0 min): {"status":"InProgress","applicationId":0}
+[14:07:16] Poll #2 (5 min): {"status":"Completed","applicationId":619}
+
+Application creation completed successfully!
+Application ID: 619
+Total time: 5 minutes (2 polls)
+
+status        : Completed
+applicationId : 619</code></pre>
+            </details>
+
+            <h4>Example 2: Faster polling with shorter timeout</h4>
+            <pre><code class="language-powershell">$result = Watch-JuribaAppRApplicationCreation -UploadId $upload.Uuid `
+    -IntervalSeconds 30 -TimeoutMinutes 10</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>Watching application creation for upload a3f7c9e2-81d4-4b6a-9e02-5c8d1f3a7b60
+Polling every 30 seconds (timeout: 10 minutes)
+[14:02:15] Poll #1 (0 min): {"status":"InProgress","applicationId":0}
+[14:02:45] Poll #2 (0.5 min): {"status":"InProgress","applicationId":0}
+[14:03:15] Poll #3 (1 min): {"status":"Completed","applicationId":619}
+
+Application creation completed successfully!
+Application ID: 619
+Total time: 1 minutes (3 polls)</code></pre>
+            </details>
+
+            <h4>Example 3: Full end-to-end pipeline</h4>
+            <pre><code class="language-powershell">$upload = Send-JuribaAppRSetupFile -FilePath "C:\Installers\App.exe"
+$app = New-JuribaAppRApplication -Uuid $upload.Uuid -FileName $upload.FileName `
+    -FileSize $upload.FileSize -TotalChunks $upload.TotalChunks -RunImmediately
+$created = Watch-JuribaAppRApplicationCreation -UploadId $upload.Uuid -IntervalSeconds 30
+if ($created.status -eq 'Completed') {
+    Write-Host "App ID: $($created.applicationId)"
+}</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>Watching application creation for upload a3f7c9e2-81d4-4b6a-9e02-5c8d1f3a7b60
+Polling every 30 seconds (timeout: 120 minutes)
+[14:02:15] Poll #1 (0 min): {"status":"InProgress","applicationId":0}
+[14:02:45] Poll #2 (0.5 min): {"status":"Completed","applicationId":619}
+
+Application creation completed successfully!
+Application ID: 619
+Total time: 0.5 minutes (2 polls)
+App ID: 619</code></pre>
+            </details>
+
+            <div style="background: #f4f6f9; border-left: 4px solid #1a5276; padding: 1rem 1.25rem; margin: 2rem 0; border-radius: 0 4px 4px 0;">
+                <strong>Note:</strong> If the timeout is reached, the cmdlet returns an object with <code>Status = 'Timeout'</code>. The application may still be processing on the server. You can resume watching manually with <code>Get-JuribaAppRApplicationCreationState</code>.
+            </div>
+
+            <!-- ──────────────────────────────────────────────────────── -->
+            <h2 id="watch-juribaapprapplicationstatus">Watch-JuribaAppRApplicationStatus</h2>
+
+            <p>Polls the full workflow status of an application until it reaches a terminal state or times out. Use this after the application has been created and is processing through the packaging, testing, and publishing pipeline.</p>
+
+            <h3>Syntax</h3>
+            <pre><code class="language-powershell">Watch-JuribaAppRApplicationStatus
+    -AppId &lt;Int32&gt;
+    [-Instance &lt;String&gt;]
+    [-APIKey &lt;String&gt;]
+    [-IntervalSeconds &lt;Int32&gt;]
+    [-TimeoutMinutes &lt;Int32&gt;]
+    [-Quiet]</code></pre>
+
+            <h3>Parameters</h3>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>Type</th><th>Status</th><th>Default</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>-AppId</code></td><td>Int32</td><td><span style="color:#c0392b;font-weight:bold;">Required</span></td><td>--</td><td>The application ID to monitor.</td></tr>
+                    <tr><td><code>-Instance</code></td><td>String</td><td><span style="color:#7f8c8d;">Optional</span></td><td>--</td><td>Instance URL override.</td></tr>
+                    <tr><td><code>-APIKey</code></td><td>String</td><td><span style="color:#7f8c8d;">Optional</span></td><td>--</td><td>API key override.</td></tr>
+                    <tr><td><code>-IntervalSeconds</code></td><td>Int32</td><td><span style="color:#7f8c8d;">Optional</span></td><td>300</td><td>Seconds between polls. Valid range: 10-3600.</td></tr>
+                    <tr><td><code>-TimeoutMinutes</code></td><td>Int32</td><td><span style="color:#7f8c8d;">Optional</span></td><td>240</td><td>Maximum minutes to poll. Valid range: 1-1440.</td></tr>
+                    <tr><td><code>-Quiet</code></td><td>Switch</td><td><span style="color:#7f8c8d;">Optional</span></td><td>--</td><td>Suppress console output; only return the final object.</td></tr>
+                </tbody>
+            </table>
+
+            <h3>Terminal States</h3>
+            <p>The cmdlet stops polling when the application's <code>ext.status</code> reaches one of these values:</p>
+            <table>
+                <thead>
+                    <tr><th>State</th><th>Meaning</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>ReadyForQualityReview</code></td><td>Packaging succeeded. The application is waiting for manual quality review.</td></tr>
+                    <tr><td><code>QualityReview</code></td><td>Quality review is in progress.</td></tr>
+                    <tr><td><code>ReadyForUat</code></td><td>Quality review passed. Waiting for user acceptance testing.</td></tr>
+                    <tr><td><code>Uat</code></td><td>User acceptance testing is in progress.</td></tr>
+                    <tr><td><code>ReadyForPublishing</code></td><td>All testing passed. Waiting for publishing.</td></tr>
+                    <tr><td><code>Published</code></td><td>The application has been published to the target deployment system.</td></tr>
+                    <tr><td><code>Failed</code></td><td>The workflow failed at some stage.</td></tr>
+                    <tr><td><code>FailedPackaging</code></td><td>Packaging specifically failed (e.g., VM error, installer crash).</td></tr>
+                    <tr><td><code>FailedToPackage</code></td><td>Equivalent to FailedPackaging in some API versions.</td></tr>
+                    <tr><td><code>Cancelled</code></td><td>The workflow was manually cancelled.</td></tr>
+                </tbody>
+            </table>
+
+            <h3>When to Use</h3>
+            <p>Use this as the final step in an automation pipeline. Packaging can take anywhere from a few minutes (wrapping-only) to over an hour (full VM repackaging with testing). Adjust <code>-IntervalSeconds</code> and <code>-TimeoutMinutes</code> accordingly.</p>
+
+            <h3>Examples</h3>
+
+            <h4>Example 1: Watch with default settings</h4>
+            <pre><code class="language-powershell">$final = Watch-JuribaAppRApplicationStatus -AppId 619
+$final</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>Watching application 619 workflow status
+Polling every 300 seconds (timeout: 240 minutes)
+[14:10:00] Poll #1 (0 min): Packaging (15%)
+[14:15:01] Poll #2 (5 min): Packaging (45%)
+[14:20:02] Poll #3 (10 min): Packaging (80%)
+[14:25:03] Poll #4 (15 min): ReadyForQualityReview (100%)
+[14:25:03] Workflow reached: ReadyForQualityReview (100%)
+
+Status    : ReadyForQualityReview
+AppId     : 619
+Progress  : 100
+Elapsed   : 15 minutes
+PollCount : 4</code></pre>
+            </details>
+
+            <h4>Example 2: Faster polling for a wrapping-only job</h4>
+            <pre><code class="language-powershell">$final = Watch-JuribaAppRApplicationStatus -AppId 619 -IntervalSeconds 30 -TimeoutMinutes 15
+if ($final.Status -match 'Fail|Cancel') {
+    Write-Warning "Workflow did not succeed: $($final.Status)"
+} else {
+    Write-Host "Completed with status: $($final.Status)"
+}</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>Watching application 619 workflow status
+Polling every 30 seconds (timeout: 15 minutes)
+[14:10:00] Poll #1 (0 min): Packaging (10%)
+[14:10:30] Poll #2 (0.5 min): Packaging (55%)
+[14:11:00] Poll #3 (1 min): Packaging (90%)
+[14:11:30] Poll #4 (1.5 min): ReadyForQualityReview (100%)
+[14:11:30] Workflow reached: ReadyForQualityReview (100%)
+Completed with status: ReadyForQualityReview</code></pre>
+            </details>
+
+            <h4>Example 3: Full pipeline from upload to terminal state</h4>
+            <pre><code class="language-powershell">$upload  = Send-JuribaAppRSetupFile -FilePath "C:\Installers\App.exe"
+$app     = New-JuribaAppRApplication -Uuid $upload.Uuid -FileName $upload.FileName `
+               -FileSize $upload.FileSize -TotalChunks $upload.TotalChunks -RunImmediately
+$created = Watch-JuribaAppRApplicationCreation -UploadId $upload.Uuid -IntervalSeconds 30
+$final   = Watch-JuribaAppRApplicationStatus -AppId $created.applicationId -IntervalSeconds 60
+
+Write-Host "Application $($final.AppId) finished: $($final.Status) in $($final.Elapsed)"</code></pre>
+            <details>
+                <summary>Sample Output</summary>
+                <pre><code>Watching application creation for upload a3f7c9e2-81d4-4b6a-9e02-5c8d1f3a7b60
+Polling every 30 seconds (timeout: 120 minutes)
+[14:02:15] Poll #1 (0 min): {"status":"Completed","applicationId":619}
+
+Application creation completed successfully!
+Application ID: 619
+Total time: 0 minutes (1 polls)
+
+Watching application 619 workflow status
+Polling every 60 seconds (timeout: 240 minutes)
+[14:02:45] Poll #1 (0 min): Packaging (5%)
+[14:03:45] Poll #2 (1 min): Packaging (40%)
+[14:04:45] Poll #3 (2 min): Packaging (75%)
+[14:05:45] Poll #4 (3 min): ReadyForQualityReview (100%)
+[14:05:45] Workflow reached: ReadyForQualityReview (100%)
+
+Application 619 finished: ReadyForQualityReview in 3 minutes</code></pre>
+            </details>
+
+            <div style="background: #f4f6f9; border-left: 4px solid #1a5276; padding: 1rem 1.25rem; margin: 2rem 0; border-radius: 0 4px 4px 0;">
+                <strong>Note:</strong> The return object includes an <code>AppDetail</code> property containing the full application record from the API. You can inspect <code>$final.AppDetail.ext</code> for detailed packaging results, error messages, and output file paths.
+            </div>
+
+        </div>
+        <div class="page-nav">
+            <a href="applications.html" class="prev">&larr; Applications</a>
+            <a href="cmdlets-knowledge-base.html" class="next">Knowledge Base &rarr;</a>
+        </div>
+    </main>
+    <script src="js/nav.js"></script>
+    <script src="js/copy-code.js"></script>
+</body>
+</html>

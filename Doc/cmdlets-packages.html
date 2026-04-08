@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Packages - Juriba.AppR Documentation</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav id="sidebar"></nav>
+    <main>
+        <div class="breadcrumb"><a href="index.html">Home</a> &gt; Cmdlet Reference &gt; Packages</div>
+        <div class="content">
+            <h1>Package Cmdlets</h1>
+            <p>These cmdlets retrieve packaging information for applications managed by Juriba App Readiness. Use them to inspect which package formats are available, check packaging status, and retrieve detailed metadata for a specific package type.</p>
+
+            <!-- ================================================ -->
+            <h2 id="Get-JuribaAppRApplicationPackage">Get-JuribaAppRApplicationPackage</h2>
+
+            <h3>Synopsis</h3>
+            <p>Gets package information for an application. Returns all available packages or details for a specific package type.</p>
+
+            <h3>Syntax</h3>
+            <pre><code class="language-powershell"># Mode 1 -- All packages for an application
+Get-JuribaAppRApplicationPackage -AppId &lt;Int32&gt;
+
+# Mode 2 -- Filtered to a specific package type
+Get-JuribaAppRApplicationPackage -AppId &lt;Int32&gt; -PackageType &lt;String&gt;</code></pre>
+
+            <h3>Parameters</h3>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>Type</th><th>Status</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>-Instance</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The URL of the App Readiness instance. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-APIKey</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The API key for authentication. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-AppId</code></td>
+                        <td>Int32</td>
+                        <td><span class="badge req">Required</span></td>
+                        <td>The unique identifier of the application.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-PackageType</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>Filter to a specific package type. Accepted values: <code>Msi</code>, <code>Msix</code>, <code>IntuneWin</code>, <code>AppV</code>.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Package Type Values</h3>
+            <table>
+                <thead>
+                    <tr><th>Value</th><th>Format</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>Msi</code></td><td>Windows Installer</td><td>Traditional MSI package created by App Readiness.</td></tr>
+                    <tr><td><code>Msix</code></td><td>MSIX / MSIX Bundle</td><td>Modern Windows packaging format with containerisation.</td></tr>
+                    <tr><td><code>IntuneWin</code></td><td>Intune Win32</td><td>Wrapped package for deployment via Microsoft Intune.</td></tr>
+                    <tr><td><code>AppV</code></td><td>App-V 5.x</td><td>Microsoft Application Virtualisation sequence.</td></tr>
+                </tbody>
+            </table>
+
+            <h3>When to Use</h3>
+            <p>Use this cmdlet when you need a summary of all package types produced for a given application, or when you want packaging metadata (status, file names, sizes) for a single package type. It calls the <code>allPackages</code> endpoint (Mode 1) or the <code>packaging/information</code> endpoint (Mode 2).</p>
+
+            <h3>Examples</h3>
+
+            <h4>Example 1 -- List all packages for an application</h4>
+            <pre><code class="language-powershell">Get-JuribaAppRApplicationPackage -AppId 101</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>PackageType : Msi
+Status      : Complete
+FileName    : 7-Zip_24.07_x64.msi
+FileSize    : 2458624
+
+PackageType : Msix
+Status      : Complete
+FileName    : 7-Zip_24.07_x64.msix
+FileSize    : 1934336
+
+PackageType : IntuneWin
+Status      : Complete
+FileName    : 7-Zip_24.07_x64.intunewin
+FileSize    : 2621440
+
+PackageType : AppV
+Status      : NotStarted
+FileName    :
+FileSize    :</code></pre>
+            </details>
+
+            <h4>Example 2 -- Get MSI package details for a specific application</h4>
+            <pre><code class="language-powershell">Get-JuribaAppRApplicationPackage -AppId 204 -PackageType Msi</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>PackageType   : Msi
+Status        : Complete
+FileName      : GoogleChromeEnterprise_124.0.6367.msi
+FileSize      : 104857600
+ProductCode   : {8A69D345-D564-463C-AFF1-A69D9E530F96}
+UpgradeCode   : {8A69D345-D564-463C-AFF1-A69D9E530F96}
+InstallCmd    : msiexec /i "GoogleChromeEnterprise_124.0.6367.msi" /qn
+UninstallCmd  : msiexec /x {8A69D345-D564-463C-AFF1-A69D9E530F96} /qn</code></pre>
+            </details>
+
+            <div style="background: #f4f6f9; border-left: 4px solid #1a5276; padding: 1rem 1.25rem; margin: 2rem 0; border-radius: 0 4px 4px 0;">
+                <strong>Note:</strong> When <code>-PackageType</code> is omitted, the cmdlet calls the <code>allPackages</code> endpoint and returns a summary for every package format. When <code>-PackageType</code> is provided, it calls the <code>packaging/information</code> endpoint and returns richer detail for that single format.
+            </div>
+
+            <!-- ================================================ -->
+            <h2 id="Get-JuribaAppRApplicationPackageDetail">Get-JuribaAppRApplicationPackageDetail</h2>
+
+            <h3>Synopsis</h3>
+            <p>Gets detailed package information for a specific application and package type using the v1 API endpoint.</p>
+
+            <h3>Syntax</h3>
+            <pre><code class="language-powershell">Get-JuribaAppRApplicationPackageDetail -ApplicationId &lt;Int32&gt; -PackageType &lt;String&gt;</code></pre>
+
+            <h3>Parameters</h3>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>Type</th><th>Status</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>-Instance</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The URL of the App Readiness instance. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-APIKey</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The API key for authentication. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-ApplicationId</code></td>
+                        <td>Int32</td>
+                        <td><span class="badge req">Required</span></td>
+                        <td>The unique identifier of the application.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-PackageType</code></td>
+                        <td>String</td>
+                        <td><span class="badge req">Required</span></td>
+                        <td>The package type to retrieve (e.g. <code>Msi</code>, <code>Msix</code>, <code>IntuneWin</code>, <code>AppV</code>).</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>When to Use</h3>
+            <p>Use this cmdlet when you need the v1 API response for a package, which includes version-level detail not available from the standard <code>Get-JuribaAppRApplicationPackage</code> endpoint. This is particularly useful for integrations that require the versioned API contract or when you need extended metadata such as build identifiers and packaging timestamps.</p>
+
+            <h3>Comparison with Get-JuribaAppRApplicationPackage</h3>
+            <table>
+                <thead>
+                    <tr><th>Feature</th><th>Get-JuribaAppRApplicationPackage</th><th>Get-JuribaAppRApplicationPackageDetail</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>API endpoint</td><td><code>api/packaging/information/{id}/{type}</code></td><td><code>api/v1/application/{id}/package/{type}</code></td></tr>
+                    <tr><td>List all package types</td><td>Yes (omit <code>-PackageType</code>)</td><td>No -- single type only</td></tr>
+                    <tr><td>Parameter name</td><td><code>-AppId</code></td><td><code>-ApplicationId</code></td></tr>
+                    <tr><td>Version-level metadata</td><td>Limited</td><td>Full</td></tr>
+                </tbody>
+            </table>
+
+            <h3>Examples</h3>
+
+            <h4>Example 1 -- Get detailed MSI package info</h4>
+            <pre><code class="language-powershell">Get-JuribaAppRApplicationPackageDetail -ApplicationId 312 -PackageType Msi</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>ApplicationId  : 312
+Name           : Notepad++
+Version        : 8.6.9
+PackageType    : Msi
+PackageVersion : 1.0.0
+Status         : Complete
+FileName       : Notepadpp_8.6.9_x64.msi
+FileSize       : 4718592
+CreatedDate    : 2026-03-15T09:22:14Z
+CompletedDate  : 2026-03-15T09:24:47Z
+BuildId        : bld-00312-001</code></pre>
+            </details>
+
+            <h4>Example 2 -- Get IntuneWin detail for Chrome</h4>
+            <pre><code class="language-powershell">Get-JuribaAppRApplicationPackageDetail -ApplicationId 204 -PackageType IntuneWin</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>ApplicationId  : 204
+Name           : Google Chrome Enterprise
+Version        : 124.0.6367
+PackageType    : IntuneWin
+PackageVersion : 1.0.0
+Status         : Complete
+FileName       : GoogleChromeEnterprise_124.0.6367.intunewin
+FileSize       : 110100480
+CreatedDate    : 2026-03-12T14:08:33Z
+CompletedDate  : 2026-03-12T14:11:02Z
+BuildId        : bld-00204-003</code></pre>
+            </details>
+
+            <div style="background: #f4f6f9; border-left: 4px solid #1a5276; padding: 1rem 1.25rem; margin: 2rem 0; border-radius: 0 4px 4px 0;">
+                <strong>Note:</strong> This cmdlet uses <code>-ApplicationId</code> (not <code>-AppId</code>) to align with the v1 API naming conventions. Make sure to use the correct parameter name when switching between this cmdlet and <code>Get-JuribaAppRApplicationPackage</code>.
+            </div>
+        </div>
+        <div class="page-nav">
+            <a href="knowledge-base.html" class="prev">&larr; Knowledge Base</a>
+            <a href="cmdlets-testing.html" class="next">Testing &rarr;</a>
+        </div>
+    </main>
+    <script src="js/nav.js"></script>
+    <script src="js/copy-code.js"></script>
+</body>
+</html>

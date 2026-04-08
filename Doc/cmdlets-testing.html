@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Testing - Juriba.AppR Documentation</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav id="sidebar"></nav>
+    <main>
+        <div class="breadcrumb"><a href="index.html">Home</a> &gt; Cmdlet Reference &gt; Testing</div>
+        <div class="content">
+            <h1>Testing Cmdlets</h1>
+            <p>These cmdlets manage the automated smoke-testing lifecycle in Juriba App Readiness. They interact with the ACE (Automated Compatibility Engine) framework, which provisions virtual machines, installs packaged applications, runs compatibility checks, and records pass/fail/warning results.</p>
+
+            <!-- ================================================ -->
+            <h2 id="Get-JuribaAppRTestApplication">Get-JuribaAppRTestApplication</h2>
+
+            <h3>Synopsis</h3>
+            <p>Gets applications available for testing in the ACE testing environment.</p>
+
+            <h3>Syntax</h3>
+            <pre><code class="language-powershell"># Mode 1 -- All test applications (default)
+Get-JuribaAppRTestApplication
+
+# Mode 2 -- Specific application
+Get-JuribaAppRTestApplication -AppId &lt;Int32&gt;
+
+# Mode 3 -- All environments
+Get-JuribaAppRTestApplication -AllEnvironments</code></pre>
+
+            <h3>Parameters</h3>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>Type</th><th>Status</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>-Instance</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The URL of the App Readiness instance. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-APIKey</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The API key for authentication. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-AppId</code></td>
+                        <td>Int32</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The unique identifier of an application. When provided, returns test details for that application only.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-AllEnvironments</code></td>
+                        <td>Switch</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>When specified, returns applications across all testing environments rather than just the default environment.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>When to Use</h3>
+            <p>Use this cmdlet to discover which applications are available for smoke testing, check their current test status, or enumerate applications across multiple ACE environments. The ACE framework automatically provisions clean virtual machines, installs the packaged application, executes compatibility checks, and records results. This cmdlet reads the current state of that process.</p>
+
+            <h3>Examples</h3>
+
+            <h4>Example 1 -- List all applications available for testing</h4>
+            <pre><code class="language-powershell">Get-JuribaAppRTestApplication | Format-Table AppId, Name, TestStatus -AutoSize</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>AppId Name                        TestStatus
+----- ----                        ----------
+  101 7-Zip                       Passed
+  204 Google Chrome Enterprise    Testing
+  312 Notepad++                   Failed
+  415 VLC Media Player            NotTested
+  518 PuTTY                       Passed</code></pre>
+            </details>
+
+            <h4>Example 2 -- Get test details for a single application</h4>
+            <pre><code class="language-powershell">Get-JuribaAppRTestApplication -AppId 312</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>AppId           : 312
+Name            : Notepad++
+Version         : 8.6.9
+TestStatus      : Failed
+PackagesTested  : {Msi, Msix}
+LastTestDate    : 2026-03-28T15:42:18Z
+VMGroupId       : 2
+FailureReason   : Install returned exit code 1603</code></pre>
+            </details>
+
+            <h4>Example 3 -- List applications across all environments</h4>
+            <pre><code class="language-powershell">Get-JuribaAppRTestApplication -AllEnvironments | Group-Object Environment | Format-Table Name, Count</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>Name             Count
+----             -----
+Windows 11 24H2    38
+Windows 10 22H2    25
+Windows 11 23H2    12</code></pre>
+            </details>
+
+            <div style="background: #f4f6f9; border-left: 4px solid #1a5276; padding: 1rem 1.25rem; margin: 2rem 0; border-radius: 0 4px 4px 0;">
+                <strong>Note:</strong> The <code>-AppId</code> and <code>-AllEnvironments</code> parameters are mutually exclusive. If both are provided, <code>-AppId</code> takes precedence.
+            </div>
+
+            <!-- ================================================ -->
+            <h2 id="Start-JuribaAppRSmokeTest">Start-JuribaAppRSmokeTest</h2>
+
+            <h3>Synopsis</h3>
+            <p>Initiates a smoke test for a specific application and package type.</p>
+
+            <h3>Syntax</h3>
+            <pre><code class="language-powershell"># Mode 1 -- Auto-assigned VM (single test)
+Start-JuribaAppRSmokeTest -AppId &lt;Int32&gt; -PackageType &lt;String&gt;
+
+# Mode 2 -- Specific VM group (manual test)
+Start-JuribaAppRSmokeTest -AppId &lt;Int32&gt; -PackageType &lt;String&gt; -VMGroupId &lt;Int32&gt;</code></pre>
+
+            <h3>Parameters</h3>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>Type</th><th>Status</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>-Instance</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The URL of the App Readiness instance. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-APIKey</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The API key for authentication. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-AppId</code></td>
+                        <td>Int32</td>
+                        <td><span class="badge req">Required</span></td>
+                        <td>The unique identifier of the application to test.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-PackageType</code></td>
+                        <td>String</td>
+                        <td><span class="badge req">Required</span></td>
+                        <td>The package type to test (e.g. <code>Msi</code>, <code>Msix</code>, <code>IntuneWin</code>, <code>AppV</code>).</td>
+                    </tr>
+                    <tr>
+                        <td><code>-VMGroupId</code></td>
+                        <td>Int32</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The VM group (pool) to run the test on. If omitted, ACE automatically assigns a VM from the default pool.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>When to Use</h3>
+            <p>Use this cmdlet to kick off an automated smoke test after packaging is complete. In Mode 1 (without <code>-VMGroupId</code>), ACE provisions a VM from the default pool, installs the package, and runs the test suite automatically. In Mode 2 (with <code>-VMGroupId</code>), the test runs on a specific VM group, which is useful when you have multiple OS environments or need to target a particular configuration.</p>
+            <p>This cmdlet supports <code>-WhatIf</code> and <code>-Confirm</code> via <code>SupportsShouldProcess</code>.</p>
+
+            <h3>Examples</h3>
+
+            <h4>Example 1 -- Start an MSI smoke test with automatic VM assignment</h4>
+            <pre><code class="language-powershell">Start-JuribaAppRSmokeTest -AppId 101 -PackageType Msi</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>TestId      : 847
+AppId       : 101
+PackageType : Msi
+VMGroupId   : 1
+Status      : Queued
+StartedAt   : 2026-03-30T10:15:22Z</code></pre>
+            </details>
+
+            <h4>Example 2 -- Start an IntuneWin test on a specific VM group</h4>
+            <pre><code class="language-powershell">Start-JuribaAppRSmokeTest -AppId 204 -PackageType IntuneWin -VMGroupId 3</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>TestId      : 848
+AppId       : 204
+PackageType : IntuneWin
+VMGroupId   : 3
+Status      : Queued
+StartedAt   : 2026-03-30T10:16:05Z</code></pre>
+            </details>
+
+            <h4>Example 3 -- Preview with -WhatIf</h4>
+            <pre><code class="language-powershell">Start-JuribaAppRSmokeTest -AppId 312 -PackageType Msix -WhatIf</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>What if: Performing the operation "Start smoke test" on target "App 312 (Msix)".</code></pre>
+            </details>
+
+            <div style="background: #f4f6f9; border-left: 4px solid #1a5276; padding: 1rem 1.25rem; margin: 2rem 0; border-radius: 0 4px 4px 0;">
+                <strong>Note:</strong> Mode 1 uses an HTTP <code>POST</code> to the <code>singleTest</code> endpoint. Mode 2 uses an HTTP <code>PUT</code> to the <code>manualTest</code> endpoint. The API methods differ because manual tests reserve a specific VM rather than requesting one from the pool.
+            </div>
+
+            <!-- ================================================ -->
+            <h2 id="Stop-JuribaAppRSmokeTest">Stop-JuribaAppRSmokeTest</h2>
+
+            <h3>Synopsis</h3>
+            <p>Cancels a running smoke test.</p>
+
+            <h3>Syntax</h3>
+            <pre><code class="language-powershell">Stop-JuribaAppRSmokeTest</code></pre>
+
+            <h3>Parameters</h3>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>Type</th><th>Status</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>-Instance</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The URL of the App Readiness instance. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-APIKey</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The API key for authentication. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>When to Use</h3>
+            <p>Use this cmdlet to cancel a smoke test that is currently in progress. This is useful when a test has been started by mistake, is taking too long, or the application configuration has changed and a re-test is needed. The associated virtual machine is released back to the pool after cancellation.</p>
+
+            <h3>Examples</h3>
+
+            <h4>Example 1 -- Cancel the current smoke test</h4>
+            <pre><code class="language-powershell">Stop-JuribaAppRSmokeTest</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>Status    : Cancelled
+Message   : Smoke test cancelled successfully.
+CancelledAt : 2026-03-30T10:20:44Z</code></pre>
+            </details>
+
+            <h4>Example 2 -- Cancel with confirmation prompt</h4>
+            <pre><code class="language-powershell">Stop-JuribaAppRSmokeTest -Confirm</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>Confirm
+Are you sure you want to perform this action?
+Performing the operation "Cancel" on target "Smoke test".
+[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [S] Suspend  [?] Help (default is "Y"): Y
+
+Status    : Cancelled
+Message   : Smoke test cancelled successfully.
+CancelledAt : 2026-03-30T10:21:12Z</code></pre>
+            </details>
+
+            <div style="background: #fff8e1; border-left: 4px solid #f0ad4e; padding: 1rem 1.25rem; margin: 2rem 0; border-radius: 0 4px 4px 0;">
+                <strong>Important:</strong> This cmdlet cancels the smoke test globally -- it does not target a specific application or test ID. If multiple tests are queued, the currently running test is cancelled and the VM is released. There is no parameter to cancel a specific test by ID.
+            </div>
+
+            <!-- ================================================ -->
+            <h2 id="Get-JuribaAppRTestResult">Get-JuribaAppRTestResult</h2>
+
+            <h3>Synopsis</h3>
+            <p>Gets smoke test results for an application, including pass/fail status, warnings, and failure details.</p>
+
+            <h3>Syntax</h3>
+            <pre><code class="language-powershell"># Mode 1 -- All results for an application
+Get-JuribaAppRTestResult -AppId &lt;Int32&gt;
+
+# Mode 2 -- Filtered by VM group and package type
+Get-JuribaAppRTestResult -AppId &lt;Int32&gt; -VMGroupId &lt;Int32&gt; -PackageType &lt;String&gt;</code></pre>
+
+            <h3>Parameters</h3>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>Type</th><th>Status</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>-Instance</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The URL of the App Readiness instance. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-APIKey</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The API key for authentication. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-AppId</code></td>
+                        <td>Int32</td>
+                        <td><span class="badge req">Required</span></td>
+                        <td>The unique identifier of the application.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-VMGroupId</code></td>
+                        <td>Int32</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>Filter results to a specific VM group. Must be used together with <code>-PackageType</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-PackageType</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>Filter results to a specific package type. Must be used together with <code>-VMGroupId</code>.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>When to Use</h3>
+            <p>Use this cmdlet after a smoke test completes to retrieve the results. Mode 1 returns all test results across every package type and VM group for the application. Mode 2 narrows the results to a specific combination of VM group and package type, which is useful when an application has been tested against multiple configurations.</p>
+
+            <h3>Examples</h3>
+
+            <h4>Example 1 -- Get all test results for an application</h4>
+            <pre><code class="language-powershell">Get-JuribaAppRTestResult -AppId 101</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>PackageType : Msi
+VMGroupId   : 1
+Result      : Passed
+Warnings    : 0
+Failures    : 0
+TestDate    : 2026-03-29T08:14:33Z
+
+PackageType : Msix
+VMGroupId   : 1
+Result      : PassedWithWarnings
+Warnings    : 2
+Failures    : 0
+TestDate    : 2026-03-29T09:02:17Z
+
+PackageType : IntuneWin
+VMGroupId   : 2
+Result      : Failed
+Warnings    : 1
+Failures    : 3
+TestDate    : 2026-03-29T10:45:08Z
+FailureDetails : {Install timeout after 300s, Service 7zService failed to start, Uninstall left orphaned registry keys}</code></pre>
+            </details>
+
+            <h4>Example 2 -- Get filtered results for a specific VM group and package type</h4>
+            <pre><code class="language-powershell">Get-JuribaAppRTestResult -AppId 204 -VMGroupId 1 -PackageType Msi</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>PackageType    : Msi
+VMGroupId      : 1
+Result         : Passed
+Warnings       : 0
+Failures       : 0
+InstallResult  : Success
+LaunchResult   : Success
+UninstallResult: Success
+TestDate       : 2026-03-28T14:22:51Z
+Duration       : 00:04:37</code></pre>
+            </details>
+
+            <h4>Example 3 -- Pipe results into a report</h4>
+            <pre><code class="language-powershell">Get-JuribaAppRTestResult -AppId 101 | Select-Object PackageType, Result, Warnings, Failures | Format-Table -AutoSize</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>PackageType Result              Warnings Failures
+----------- ------              -------- --------
+Msi         Passed                     0        0
+Msix        PassedWithWarnings         2        0
+IntuneWin   Failed                     1        3</code></pre>
+            </details>
+
+            <div style="background: #f4f6f9; border-left: 4px solid #1a5276; padding: 1rem 1.25rem; margin: 2rem 0; border-radius: 0 4px 4px 0;">
+                <strong>Note:</strong> In Mode 2, both <code>-VMGroupId</code> and <code>-PackageType</code> must be provided together. If only one is supplied, the cmdlet falls back to Mode 1 and returns all results for the application.
+            </div>
+
+            <!-- ================================================ -->
+            <h2 id="Get-JuribaAppRTestStats">Get-JuribaAppRTestStats</h2>
+
+            <h3>Synopsis</h3>
+            <p>Gets aggregate testing statistics from Juriba App Readiness.</p>
+
+            <h3>Syntax</h3>
+            <pre><code class="language-powershell"># Overall statistics
+Get-JuribaAppRTestStats
+
+# Per-application statistics
+Get-JuribaAppRTestStats -AppId &lt;Int32&gt;</code></pre>
+
+            <h3>Parameters</h3>
+            <table>
+                <thead>
+                    <tr><th>Parameter</th><th>Type</th><th>Status</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>-Instance</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The URL of the App Readiness instance. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-APIKey</code></td>
+                        <td>String</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The API key for authentication. Not required if connected via <code>Connect-JuribaAppR</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-AppId</code></td>
+                        <td>Int32</td>
+                        <td><span class="badge opt">Optional</span></td>
+                        <td>The unique identifier of an application. If omitted, returns overall statistics across all applications.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>When to Use</h3>
+            <p>Use this cmdlet to build dashboards, generate summary reports, or quickly check the health of your testing pipeline. Without <code>-AppId</code>, it returns organisation-wide totals. With <code>-AppId</code>, it returns the breakdown for a single application.</p>
+
+            <h3>Examples</h3>
+
+            <h4>Example 1 -- Get overall testing statistics</h4>
+            <pre><code class="language-powershell">Get-JuribaAppRTestStats</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>TotalTests      : 284
+Green           : 201
+Red             : 47
+Amber           : 36
+NotTested       : 112
+PassRate        : 70.8%
+LastUpdated     : 2026-03-31T23:59:59Z</code></pre>
+            </details>
+
+            <h4>Example 2 -- Get statistics for a single application</h4>
+            <pre><code class="language-powershell">Get-JuribaAppRTestStats -AppId 101</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>AppId           : 101
+Name            : 7-Zip
+TotalTests      : 6
+Green           : 4
+Red             : 1
+Amber           : 1
+PassRate        : 66.7%</code></pre>
+            </details>
+
+            <h4>Example 3 -- Dashboard-style one-liner</h4>
+            <pre><code class="language-powershell">$s = Get-JuribaAppRTestStats; "Tests: $($s.TotalTests) | Passed: $($s.Green) | Failed: $($s.Red) | Warnings: $($s.Amber) | Pass rate: $($s.PassRate)"</code></pre>
+            <details>
+                <summary>Sample output</summary>
+                <pre><code>Tests: 284 | Passed: 201 | Failed: 47 | Warnings: 36 | Pass rate: 70.8%</code></pre>
+            </details>
+
+            <div style="background: #f4f6f9; border-left: 4px solid #1a5276; padding: 1rem 1.25rem; margin: 2rem 0; border-radius: 0 4px 4px 0;">
+                <strong>Note:</strong> The colour-coded counts (Green, Red, Amber) correspond to the traffic-light indicators in the App Readiness web interface. Green means all checks passed, Red means at least one check failed, and Amber means warnings were raised but no hard failures occurred.
+            </div>
+        </div>
+        <div class="page-nav">
+            <a href="cmdlets-packages.html" class="prev">&larr; Packages</a>
+            <a href="cmdlets-quality-review.html" class="next">Quality Review &rarr;</a>
+        </div>
+    </main>
+    <script src="js/nav.js"></script>
+    <script src="js/copy-code.js"></script>
+</body>
+</html>
