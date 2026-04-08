@@ -236,9 +236,8 @@ function Send-JuribaAppRSetupFile {
         FileName        = $fileName
         FileSize        = $fileSize
         TotalChunks     = $totalChunks
-        CombineResult   = $combineResult
-        ProductName     = $productName
-        CompanyName     = $companyName
-        ProductVersion  = $productVersion
+        Name            = $productName
+        Manufacturer    = $companyName
+        Version         = $productVersion
     }
 }
