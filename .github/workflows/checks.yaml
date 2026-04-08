@@ -14,6 +14,9 @@ jobs:
       - name: 'Install PSScriptAnalyzer PowerShell module'
         run: Install-Module PSScriptAnalyzer -Force
         shell: pwsh
-      - name: 'Run PSScriptAnalyzer'
-        run: Invoke-ScriptAnalyzer -Path .\Juriba.AppR -Recurse -EnableExit -ExcludeRule PSAvoidTrailingWhitespace | Format-List -Property ScriptName, RuleName, Severity, Line, Column, Message
+      - name: 'Run PSScriptAnalyzer — module code'
+        run: Invoke-ScriptAnalyzer -Path ./Juriba.AppR/Public -Recurse -EnableExit -ExcludeRule PSAvoidTrailingWhitespace | Format-List -Property ScriptName, RuleName, Severity, Line, Column, Message
+        shell: pwsh
+      - name: 'Run PSScriptAnalyzer — examples'
+        run: Invoke-ScriptAnalyzer -Path ./Juriba.AppR/Examples -Recurse -EnableExit -ExcludeRule PSAvoidTrailingWhitespace, PSAvoidUsingWriteHost | Format-List -Property ScriptName, RuleName, Severity, Line, Column, Message
         shell: pwsh

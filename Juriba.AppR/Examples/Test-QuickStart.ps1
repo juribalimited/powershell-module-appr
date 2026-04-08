@@ -197,9 +197,9 @@ if (-not $SkipUpload) {
                 RunImmediately = $true
                 Verbose        = $true
             }
-            if ($upload.ProductName)    { $splatCreate['Name']         = $upload.ProductName }
-            if ($upload.CompanyName)    { $splatCreate['Manufacturer'] = $upload.CompanyName }
-            if ($upload.ProductVersion) { $splatCreate['Version']      = $upload.ProductVersion }
+            if ($upload.Name)         { $splatCreate['Name']         = $upload.Name }
+            if ($upload.Manufacturer) { $splatCreate['Manufacturer'] = $upload.Manufacturer }
+            if ($upload.Version)      { $splatCreate['Version']      = $upload.Version }
 
             # Auto-select the first active VM group (status=2) for packaging
             $vmGroups = Get-JuribaAppRVMGroup

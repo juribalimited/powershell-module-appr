@@ -40,7 +40,7 @@ Connect-JuribaAppR -Instance "https://demo.appr.juriba.app" -APIKey $apiKey
 
 # 2. Upload the installer
 $upload = Send-JuribaAppRSetupFile -FilePath "C:\Installers\7z2407-x64.exe" -Verbose
-# Returns: Uuid, FileName, FileSize, TotalChunks, ProductName, CompanyName, ProductVersion
+# Returns: Uuid, FileName, FileSize, TotalChunks, Name, Manufacturer, Version
 
 # 3. Create the application — New-JuribaAppRApplication handles:
 #    - Reading Default Settings (VM groups, output format bitmask)
@@ -55,9 +55,9 @@ $splatCreate = @{
     RunImmediately = $true
 }
 # Pass client-side metadata as fallback hints
-if ($upload.ProductName)    { $splatCreate['Name']         = $upload.ProductName }
-if ($upload.CompanyName)    { $splatCreate['Manufacturer'] = $upload.CompanyName }
-if ($upload.ProductVersion) { $splatCreate['Version']      = $upload.ProductVersion }
+if ($upload.Name)         { $splatCreate['Name']         = $upload.Name }
+if ($upload.Manufacturer) { $splatCreate['Manufacturer'] = $upload.Manufacturer }
+if ($upload.Version)      { $splatCreate['Version']      = $upload.Version }
 
 $app = New-JuribaAppRApplication @splatCreate -Verbose
 
@@ -429,7 +429,7 @@ finally {
             <p>Application name, manufacturer, and version are resolved through a cascade of sources. Each step is tried in order; the first to return valid data wins:</p>
 
             <ol>
-                <li><strong>Server-side PE header extraction</strong> -- the server analyzes the uploaded binary's PE headers to extract <code>ProductName</code>, <code>CompanyName</code>, and <code>ProductVersion</code>.</li>
+                <li><strong>Server-side PE header extraction</strong> -- the server analyzes the uploaded binary's PE headers to extract <code>Name</code>, <code>Manufacturer</code>, and <code>Version</code>.</li>
                 <li><strong>Client-side FileVersionInfo</strong> -- PowerShell's <code>[System.Diagnostics.FileVersionInfo]::GetVersionInfo()</code> extracts the same fields locally before upload. In the HTML portal, the proxy server performs this extraction.</li>
                 <li><strong>Knowledge Base metadata</strong> -- when using the KB workflow, the KB response provides the canonical name, vendor, and version.</li>
                 <li><strong>Filename fallback</strong> -- if no other source provides metadata, the filename is parsed as a last resort.</li>

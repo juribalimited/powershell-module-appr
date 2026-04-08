@@ -66,9 +66,9 @@ Write-Host "`n=== Step 2: Upload ===" -ForegroundColor Magenta
 $upload = Send-JuribaAppRSetupFile -FilePath $SetupFilePath -Verbose:$VerbosePreference
 Write-Host "Uploaded: $($upload.FileName) ($([Math]::Round($upload.FileSize / 1MB, 2)) MB)"
 Write-Host "  UUID:         $($upload.Uuid)"
-Write-Host "  ProductName:  $($upload.ProductName)"
-Write-Host "  CompanyName:  $($upload.CompanyName)"
-Write-Host "  Version:      $($upload.ProductVersion)"
+Write-Host "  Name:         $($upload.Name)"
+Write-Host "  Manufacturer: $($upload.Manufacturer)"
+Write-Host "  Version:      $($upload.Version)"
 
 # 3. CREATE APPLICATION
 # New-JuribaAppRApplication now automatically:
@@ -88,9 +88,9 @@ $splatCreate = @{
 
 # Pass any client-side metadata as hints (server-side extraction takes priority
 # inside New-JuribaAppRApplication, but these serve as fallbacks)
-if ($upload.ProductName)    { $splatCreate['Name']         = $upload.ProductName }
-if ($upload.CompanyName)    { $splatCreate['Manufacturer'] = $upload.CompanyName }
-if ($upload.ProductVersion) { $splatCreate['Version']      = $upload.ProductVersion }
+if ($upload.Name)         { $splatCreate['Name']         = $upload.Name }
+if ($upload.Manufacturer) { $splatCreate['Manufacturer'] = $upload.Manufacturer }
+if ($upload.Version)      { $splatCreate['Version']      = $upload.Version }
 
 $app = New-JuribaAppRApplication @splatCreate -Verbose:$VerbosePreference
 Write-Host "Application created. Response:"
@@ -126,7 +126,7 @@ if (-not $appId) {
     # Try to find it by listing recent apps
     Write-Host "  Searching application list for uploaded file..." -ForegroundColor Yellow
     $allApps = Get-JuribaAppRApplicationList -AllUsers
-    $match = $allApps | Where-Object { $_.basic.name -eq $upload.ProductName -or $_.basic.name -like "*$([System.IO.Path]::GetFileNameWithoutExtension($upload.FileName))*" } |
+    $match = $allApps | Where-Object { $_.basic.name -eq $upload.Name -or $_.basic.name -like "*$([System.IO.Path]::GetFileNameWithoutExtension($upload.FileName))*" } |
         Sort-Object { $_.basic.id } -Descending | Select-Object -First 1
     if ($match) {
         $appId = $match.basic.id

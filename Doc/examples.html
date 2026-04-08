@@ -84,7 +84,7 @@
             <h4>The 5 steps</h4>
             <ol>
                 <li><strong>Connect</strong> -- skips if a session already exists, otherwise requires <code>-InstanceUrl</code> and <code>-APIKey</code>.</li>
-                <li><strong>Upload</strong> -- sends the file in chunks, reports UUID and extracted PE metadata (ProductName, CompanyName, ProductVersion).</li>
+                <li><strong>Upload</strong> -- sends the file in chunks, reports UUID and extracted PE metadata (Name, Manufacturer, Version).</li>
                 <li><strong>Create application</strong> -- submits with <code>-RunImmediately</code>. The cmdlet reads Default Settings automatically. Command lines are determined server-side.</li>
                 <li><strong>Wait for app ID</strong> -- polls <code>Get-JuribaAppRApplicationCreationState</code> every 10 seconds (5-minute timeout). Falls back to searching the application list by name if the creation state endpoint does not resolve.</li>
                 <li><strong>Watch status</strong> -- polls <code>Watch-JuribaAppRApplicationStatus</code> at the configured interval until <em>ReadyForQualityReview</em> or a failure state.</li>

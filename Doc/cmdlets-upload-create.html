@@ -52,9 +52,9 @@
                     <tr><td><code>FileName</code></td><td>String</td><td>Original file name of the uploaded file.</td></tr>
                     <tr><td><code>FileSize</code></td><td>Int64</td><td>Size of the file in bytes.</td></tr>
                     <tr><td><code>TotalChunks</code></td><td>Int32</td><td>Number of chunks the file was split into.</td></tr>
-                    <tr><td><code>ProductName</code></td><td>String</td><td>Product name extracted from the file's <code>FileVersionInfo</code>. May be <code>$null</code> for non-PE files.</td></tr>
-                    <tr><td><code>CompanyName</code></td><td>String</td><td>Company/manufacturer extracted from the file's <code>FileVersionInfo</code>.</td></tr>
-                    <tr><td><code>ProductVersion</code></td><td>String</td><td>Version extracted from the file's <code>FileVersionInfo</code>.</td></tr>
+                    <tr><td><code>Name</code></td><td>String</td><td>Product name extracted from the file's <code>FileVersionInfo</code>. May be <code>$null</code> for non-PE files.</td></tr>
+                    <tr><td><code>Manufacturer</code></td><td>String</td><td>Company/manufacturer extracted from the file's <code>FileVersionInfo</code>.</td></tr>
+                    <tr><td><code>Version</code></td><td>String</td><td>Version extracted from the file's <code>FileVersionInfo</code>.</td></tr>
                 </tbody>
             </table>
 
@@ -75,9 +75,9 @@ $upload</code></pre>
 FileName       : Firefox-Setup-115.0.exe
 FileSize       : 56440320
 TotalChunks    : 27
-ProductName    : Firefox
-CompanyName    : Mozilla Corporation
-ProductVersion : 115.0</code></pre>
+Name           : Firefox
+Manufacturer   : Mozilla Corporation
+Version        : 115.0</code></pre>
             </details>
 
             <h4>Example 2: Large file with custom chunk size</h4>
