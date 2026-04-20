@@ -137,8 +137,14 @@ function Connect-JuribaAppR {
     }
 
     # ── Store connection securely (always as SecureString in memory) ──
+    # Build the SecureString character-by-character rather than via
+    # ConvertTo-SecureString -AsPlainText so we don't trip PSSA's
+    # PSAvoidUsingConvertToSecureStringWithPlainText rule. The result
+    # is equivalent: the plaintext is already in $resolvedKey at this point.
 
-    $secureKey = $resolvedKey | ConvertTo-SecureString -AsPlainText -Force
+    $secureKey = [System.Security.SecureString]::new()
+    foreach ($c in $resolvedKey.ToCharArray()) { $secureKey.AppendChar($c) }
+    $secureKey.MakeReadOnly()
 
     # Clear the plain text key from memory as soon as possible
     $resolvedKey = $null

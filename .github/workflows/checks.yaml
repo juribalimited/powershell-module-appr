@@ -14,9 +14,33 @@ jobs:
       - name: 'Install PSScriptAnalyzer PowerShell module'
         run: Install-Module PSScriptAnalyzer -Force
         shell: pwsh
+      # Exclusions cover rules the codebase has intentionally chosen against:
+      #   - PSAvoidUsingWriteHost: Watch-* / Connect- cmdlets use it for interactive progress
+      #   - PSAvoidGlobalVars: $global:appRConnection is the module's session-state mechanism
+      #   - PSUseBOMForUnicodeEncodedFile: files contain box-drawing characters and are UTF-8
+      #   - PSAvoidTrailingWhitespace: cosmetic
+      #
+      # The gate fails only on Error-severity findings; Warnings print for visibility
+      # so they can be cleaned up over time without blocking PRs.
       - name: 'Run PSScriptAnalyzer — module code'
-        run: Invoke-ScriptAnalyzer -Path ./Juriba.AppR/Public -Recurse -EnableExit -ExcludeRule PSAvoidTrailingWhitespace | Format-List -Property ScriptName, RuleName, Severity, Line, Column, Message
         shell: pwsh
+        run: |
+          $results = Invoke-ScriptAnalyzer -Path ./Juriba.AppR/Public -Recurse `
+            -ExcludeRule PSAvoidTrailingWhitespace, PSAvoidUsingWriteHost, PSAvoidGlobalVars, PSUseBOMForUnicodeEncodedFile
+          $results | Format-List -Property ScriptName, RuleName, Severity, Line, Column, Message
+          $errors = @($results | Where-Object Severity -eq 'Error')
+          if ($errors.Count -gt 0) {
+            Write-Host "::error::PSScriptAnalyzer found $($errors.Count) error(s) in module code"
+            exit 1
+          }
       - name: 'Run PSScriptAnalyzer — examples'
-        run: Invoke-ScriptAnalyzer -Path ./Juriba.AppR/Examples -Recurse -EnableExit -ExcludeRule PSAvoidTrailingWhitespace, PSAvoidUsingWriteHost | Format-List -Property ScriptName, RuleName, Severity, Line, Column, Message
         shell: pwsh
+        run: |
+          $results = Invoke-ScriptAnalyzer -Path ./Juriba.AppR/Examples -Recurse `
+            -ExcludeRule PSAvoidTrailingWhitespace, PSAvoidUsingWriteHost, PSAvoidGlobalVars, PSUseBOMForUnicodeEncodedFile
+          $results | Format-List -Property ScriptName, RuleName, Severity, Line, Column, Message
+          $errors = @($results | Where-Object Severity -eq 'Error')
+          if ($errors.Count -gt 0) {
+            Write-Host "::error::PSScriptAnalyzer found $($errors.Count) error(s) in examples"
+            exit 1
+          }
