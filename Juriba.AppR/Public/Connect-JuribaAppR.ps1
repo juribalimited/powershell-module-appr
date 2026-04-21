@@ -1,4 +1,4 @@
-function Connect-JuribaAppR {
+﻿function Connect-JuribaAppR {
     <#
       .SYNOPSIS
       Establishes a connection to a Juriba App Readiness instance.
@@ -45,6 +45,10 @@ function Connect-JuribaAppR {
       Connects with a SecureString that never appears in console history.
     #>
 
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidGlobalVars', '',
+        Justification = 'The module stores its session handle in $global:appRConnection so other cmdlets (Disconnect, Get-JuribaAppRConnection) can read it across scopes. Intentional session-state mechanism.')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive connection confirmation for CLI users; this is user-facing output, not diagnostic logging.')]
     [CmdletBinding(DefaultParameterSetName = 'PlainText')]
     [Alias("Connect-AppR")]
     param (

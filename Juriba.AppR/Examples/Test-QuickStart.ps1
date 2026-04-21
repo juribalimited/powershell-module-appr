@@ -19,6 +19,13 @@
   .\Test-QuickStart.ps1 -InstanceUrl "https://demo.appr.juriba.app" -APIKey "your-key-here" -SetupFilePath "C:\Installers\Firefox-Setup.exe"
 #>
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+    Justification = 'Interactive example script - user-facing colored console output for test progress and results.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidGlobalVars', '',
+    Justification = 'Reads the module session handle $global:appRConnection to display connection info; the variable is owned by the Juriba.AppR module.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '',
+    Justification = 'InstanceUrl and APIKey are referenced inside Test-Cmdlet scriptblocks via closure; PSSA cannot follow closure references.')]
+[CmdletBinding()]
 param (
     [Parameter(Mandatory = $true)]
     [string]$InstanceUrl,
@@ -80,11 +87,11 @@ Test-Cmdlet "Get-JuribaAppRAboutInfo" {
     Write-Host "  Returned $($info.Count) items"
 }
 
-$user = Test-Cmdlet "Get-JuribaAppRUser (whoami)" {
+Test-Cmdlet "Get-JuribaAppRUser (whoami)" {
     $u = Get-JuribaAppRUser
     Write-Host "  Logged in as: $($u.userName) ($($u.emailAddress))"
     $u
-}
+} | Out-Null
 
 $apps = Test-Cmdlet "Get-JuribaAppRApplicationList -AllUsers" {
     $list = Get-JuribaAppRApplicationList -AllUsers

@@ -36,6 +36,8 @@ function Watch-JuribaAppRApplicationCreation {
       Full end-to-end workflow: upload, create, and poll until complete.
     #>
 
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Long-running interactive watcher - emits user-facing progress updates (not diagnostic logging) so CLI users can see polling activity.')]
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $false)]
@@ -88,7 +90,6 @@ function Watch-JuribaAppRApplicationCreation {
         }
 
         # Log the current state
-        $currentStatus = $state
         $statusText = if ($state -is [string]) { $state } else { $state | ConvertTo-Json -Compress -Depth 3 }
 
         if (-not $Quiet) {

@@ -43,6 +43,8 @@
   Non-interactive local-file run.
 #>
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+    Justification = 'Interactive example script - user-facing colored console output for progress and results.')]
 [CmdletBinding(DefaultParameterSetName = 'Interactive')]
 param (
     [Parameter(Mandatory = $false)]

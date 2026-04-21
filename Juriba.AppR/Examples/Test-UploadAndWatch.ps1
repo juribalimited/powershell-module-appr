@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Real-world end-to-end test: upload a package, create the app, and poll until packaging completes.
 .DESCRIPTION
@@ -25,6 +25,10 @@
       -APIKey "your-key" -SetupFilePath "C:\Installers\7z2407-x64.exe"
 #>
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+    Justification = 'Interactive example script - user-facing colored console output for progress and results.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidGlobalVars', '',
+    Justification = 'Reads the module session handle $global:appRConnection to detect existing connections; the variable is owned by the Juriba.AppR module.')]
 [CmdletBinding()]
 param (
     [Parameter(Mandatory = $false)]

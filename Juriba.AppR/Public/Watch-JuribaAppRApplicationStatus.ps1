@@ -1,4 +1,4 @@
-function Watch-JuribaAppRApplicationStatus {
+﻿function Watch-JuribaAppRApplicationStatus {
     <#
       .SYNOPSIS
       Polls the full workflow status of an application until it reaches a target state or times out.
@@ -35,6 +35,8 @@ function Watch-JuribaAppRApplicationStatus {
       Full pipeline: upload, create, wait for creation, then watch workflow to completion.
     #>
 
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Long-running interactive watcher - emits user-facing progress updates (not diagnostic logging) so CLI users can see polling activity.')]
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $false)]

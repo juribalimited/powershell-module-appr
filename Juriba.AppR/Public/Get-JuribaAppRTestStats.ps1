@@ -20,6 +20,8 @@ function Get-JuribaAppRTestStats {
       Returns testing statistics for application 42.
     #>
 
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '',
+        Justification = 'Returns aggregate testing statistics - a bundle of counts. Renaming to TestStat would misrepresent the payload.')]
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $false)]

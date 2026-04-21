@@ -10,6 +10,10 @@ function Disconnect-JuribaAppR {
       Clears the current App Readiness connection.
     #>
 
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidGlobalVars', '',
+        Justification = 'Clears the module session handle stored by Connect-JuribaAppR in $global:appRConnection.')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive disconnect confirmation for CLI users.')]
     [CmdletBinding()]
     [Alias("Disconnect-AppR")]
     param ()

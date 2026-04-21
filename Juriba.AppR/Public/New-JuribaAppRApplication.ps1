@@ -1,4 +1,4 @@
-function New-JuribaAppRApplication {
+﻿function New-JuribaAppRApplication {
     <#
       .SYNOPSIS
       Creates a new application in Juriba App Readiness.

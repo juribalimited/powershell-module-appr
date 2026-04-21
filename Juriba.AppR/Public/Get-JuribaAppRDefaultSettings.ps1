@@ -1,4 +1,4 @@
-function Get-JuribaAppRDefaultSettings {
+﻿function Get-JuribaAppRDefaultSettings {
     <#
       .SYNOPSIS
       Gets the default settings for the App Readiness instance.
@@ -16,6 +16,8 @@ function Get-JuribaAppRDefaultSettings {
       Returns all default settings as an array of setting objects.
     #>
 
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '',
+        Justification = 'The noun matches the API resource "default-settings" and the cmdlet returns a bundle of settings. Renaming is a breaking change for existing consumers.')]
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $false)]

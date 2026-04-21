@@ -1,4 +1,4 @@
-function Invoke-JuribaAppRPublishGeneric {
+﻿function Invoke-JuribaAppRPublishGeneric {
     <#
       .SYNOPSIS
       Publishes a package to a generic integration.
