@@ -9,7 +9,10 @@ function Get-JuribaAppRConnection {
       This function is not exported and is used internally by public cmdlets.
     #>
 
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidGlobalVars', '',
+        Justification = 'Reads the module session handle stored by Connect-JuribaAppR in $global:appRConnection. Intentional session-state mechanism.')]
     [CmdletBinding()]
+    [OutputType([hashtable])]
     param (
         [Parameter(Mandatory = $false)]
         [string]$Instance,

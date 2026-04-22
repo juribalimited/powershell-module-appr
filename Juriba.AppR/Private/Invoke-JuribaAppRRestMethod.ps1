@@ -1,4 +1,4 @@
-function Invoke-JuribaAppRRestMethod {
+﻿function Invoke-JuribaAppRRestMethod {
     <#
       .SYNOPSIS
       Internal helper that wraps Invoke-RestMethod with standard AppR authentication and error handling.
@@ -93,7 +93,7 @@ function Invoke-JuribaAppRRestMethod {
                     $reader.Close()
                 }
                 catch {
-                    # Could not read error body
+                    Write-Verbose "Could not read error body from response stream: $($_.Exception.Message)"
                 }
             }
         }
