@@ -21,10 +21,6 @@
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
     Justification = 'Interactive example script - user-facing colored console output for test progress and results.')]
-[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidGlobalVars', '',
-    Justification = 'Reads the module session handle $global:appRConnection to display connection info; the variable is owned by the Juriba.AppR module.')]
-[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '',
-    Justification = 'InstanceUrl and APIKey are referenced inside Test-Cmdlet scriptblocks via closure; PSSA cannot follow closure references.')]
 [CmdletBinding()]
 param (
     [Parameter(Mandatory = $true)]
@@ -40,6 +36,7 @@ param (
 )
 
 $ErrorActionPreference = 'Stop'
+Write-Verbose "Target: $InstanceUrl (APIKey length: $($APIKey.Length))"
 
 # --- Locate and import the module ---
 $modulePath = Join-Path (Join-Path $PSScriptRoot '..') 'Juriba.AppR.psd1'
@@ -76,7 +73,7 @@ function Test-Cmdlet {
 # ============================================================
 Test-Cmdlet "Connect-JuribaAppR" {
     Connect-JuribaAppR -Instance $InstanceUrl -APIKey $APIKey -Verbose
-    Write-Host "  Connected as: $($global:appRConnection.Instance)"
+    Write-Host "  Connected as: $((Get-JuribaAppRSession).Instance)"
 }
 
 # ============================================================
@@ -248,7 +245,7 @@ if (-not $SkipUpload) {
 # ============================================================
 Test-Cmdlet "Disconnect-JuribaAppR" {
     Disconnect-JuribaAppR
-    if (-not $global:appRConnection) { Write-Host "  Session cleared" }
+    if (-not (Get-JuribaAppRSession)) { Write-Host "  Session cleared" }
     else { throw "Session not cleared" }
 }
 

@@ -15,11 +15,11 @@ function Get-JuribaAppRGenericIntegrationProperty { param($IntegrationId, $Publi
 function Get-JuribaAppRGenericIntegrationSource { param($IntegrationId, $PublishingId, $SourcePath) $null = $IntegrationId, $PublishingId, $SourcePath }
 function Add-JuribaAppRGenericIntegrationLog { param($IntegrationId, $PublishingId, $Message, $Level, $Date) $null = $IntegrationId, $PublishingId, $Message, $Level, $Date }
 function Update-JuribaAppRGenericIntegrationPublishingState {
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
-        Justification = 'Pester Mock stub matching the real cmdlet signature; no state change is performed here.')]
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
     param($IntegrationId, $PublishingId, $PublishingState)
     $null = $IntegrationId, $PublishingId, $PublishingState
+    # Pester intercepts this stub via Mock; satisfy PSShouldProcess without a real side-effect.
+    if ($PSCmdlet.ShouldProcess('stub', 'noop')) { }
 }
 
 Describe 'Export-MSIXAppAttachToShare' {

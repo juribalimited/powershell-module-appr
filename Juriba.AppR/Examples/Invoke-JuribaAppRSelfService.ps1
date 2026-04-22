@@ -74,11 +74,11 @@ Import-Module $modulePath -Force
 Write-Host "Juriba.AppR module imported" -ForegroundColor Cyan
 
 # --- Connect -----------------------------------------------------------------
-$connectedHere   = $false
-$existingSession = Get-Variable -Name appRConnection -Scope Global -ValueOnly -ErrorAction SilentlyContinue
-$activeInstance  = $null
-if ($existingSession -and -not $InstanceUrl) {
-    $activeInstance = $existingSession.Instance
+$connectedHere  = $false
+$existing       = Get-JuribaAppRSession
+$activeInstance = $null
+if ($existing -and -not $InstanceUrl) {
+    $activeInstance = $existing.Instance
     Write-Host "Using existing session: $activeInstance" -ForegroundColor Green
 }
 else {

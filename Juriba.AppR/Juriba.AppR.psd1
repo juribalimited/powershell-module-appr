@@ -40,6 +40,7 @@
         # Connection & Authentication
         "Connect-JuribaAppR",
         "Disconnect-JuribaAppR",
+        "Get-JuribaAppRSession",
         "Set-JuribaAppRAPIKey",
         "Get-JuribaAppRAboutInfo",
 
@@ -58,7 +59,7 @@
         "Get-JuribaAppRQualityReview",
 
         # Settings
-        "Get-JuribaAppRDefaultSettings",
+        "Get-JuribaAppRDefaultSetting",
         "Get-JuribaAppRCommandSuggestion",
 
         # Upload / Create / Monitor Applications
@@ -78,7 +79,7 @@
         "Start-JuribaAppRSmokeTest",
         "Stop-JuribaAppRSmokeTest",
         "Get-JuribaAppRTestResult",
-        "Get-JuribaAppRTestStats",
+        "Get-JuribaAppRTestStat",
 
         # Publishing
         "Get-JuribaAppRIntegrationConnector",
@@ -107,7 +108,13 @@
     VariablesToExport = @()
 
     # Aliases to export from this module
-    AliasesToExport   = @("Connect-AppR", "Disconnect-AppR")
+    AliasesToExport   = @(
+        "Connect-AppR",
+        "Disconnect-AppR",
+        # Backward-compatibility aliases for plural→singular renames (v0.1.x):
+        "Get-JuribaAppRDefaultSettings",
+        "Get-JuribaAppRTestStats"
+    )
 
     # Private data to pass to the module specified in RootModule/ModuleToProcess.
     PrivateData       = @{

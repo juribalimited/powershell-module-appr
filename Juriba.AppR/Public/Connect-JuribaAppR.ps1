@@ -45,8 +45,6 @@
       Connects with a SecureString that never appears in console history.
     #>
 
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidGlobalVars', '',
-        Justification = 'The module stores its session handle in $global:appRConnection so other cmdlets (Disconnect, Get-JuribaAppRConnection) can read it across scopes. Intentional session-state mechanism.')]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
         Justification = 'Interactive connection confirmation for CLI users; this is user-facing output, not diagnostic logging.')]
     [CmdletBinding(DefaultParameterSetName = 'PlainText')]
@@ -153,7 +151,11 @@
     # Clear the plain text key from memory as soon as possible
     $resolvedKey = $null
 
-    $global:appRConnection = @{
+    # Session state lives in the module's script scope (persists for the
+    # lifetime of the imported module). Consumers read public-safe fields
+    # via Get-JuribaAppRSession; internal cmdlets resolve the full record
+    # via Private/Get-JuribaAppRConnection.
+    $script:appRConnection = @{
         Instance     = $Instance
         SecureAPIKey = $secureKey
         ConnectedAt  = Get-Date

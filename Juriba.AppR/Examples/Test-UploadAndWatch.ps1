@@ -27,8 +27,6 @@
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
     Justification = 'Interactive example script - user-facing colored console output for progress and results.')]
-[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidGlobalVars', '',
-    Justification = 'Reads the module session handle $global:appRConnection to detect existing connections; the variable is owned by the Juriba.AppR module.')]
 [CmdletBinding()]
 param (
     [Parameter(Mandatory = $false)]
@@ -54,8 +52,9 @@ Write-Host "Module imported" -ForegroundColor Cyan
 
 # 1. CONNECT (skip if already connected)
 Write-Host "`n=== Step 1: Connect ===" -ForegroundColor Magenta
-if ($global:appRConnection) {
-    Write-Host "Already connected to $($global:appRConnection.Instance)" -ForegroundColor Green
+$existing = Get-JuribaAppRSession
+if ($existing) {
+    Write-Host "Already connected to $($existing.Instance)" -ForegroundColor Green
 }
 elseif ($InstanceUrl -and $APIKey) {
     Connect-JuribaAppR -Instance $InstanceUrl -APIKey $APIKey
