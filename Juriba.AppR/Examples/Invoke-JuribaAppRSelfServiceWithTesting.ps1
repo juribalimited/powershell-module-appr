@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Interactive self-service packaging with smoke-test visibility for Juriba App Readiness.
 .DESCRIPTION
@@ -297,9 +297,12 @@ try {
             $cleanupTempDownload = $true
         }
 
+        # `??` only fires on $null. Some KB entries return an empty string for
+        # productName/vendor — use a truthy check so "" falls back to the
+        # application-level name/vendor instead of submitting a blank field.
         $metaHint = @{
-            Name         = $srcChoice.productName -as [string] ?? $appChoice.applicationName
-            Manufacturer = $srcChoice.vendor      -as [string] ?? $appChoice.vendorName
+            Name         = if ($srcChoice.productName) { $srcChoice.productName } else { $appChoice.applicationName }
+            Manufacturer = if ($srcChoice.vendor)      { $srcChoice.vendor }      else { $appChoice.vendorName }
             Version      = $srcChoice.version
         }
     }

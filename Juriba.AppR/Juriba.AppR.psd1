@@ -12,7 +12,7 @@
     RootModule        = 'Juriba.AppR.psm1'
 
     # Version number of this module.
-    ModuleVersion     = '0.1.1'
+    ModuleVersion     = '0.2.0'
 
     # Supported PSEditions
     CompatiblePSEditions = @('Core')
@@ -33,7 +33,7 @@
     Description       = 'PowerShell module to interact with Juriba App Readiness (AppR). Provides cmdlets for managing applications, packaging, smoke testing, quality review, and publishing to distribution systems such as Intune and MECM.'
 
     # Minimum version of the PowerShell engine required by this module
-    PowerShellVersion = '7.0'
+    PowerShellVersion = '7.1'
 
     # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
     FunctionsToExport = @(
@@ -134,7 +134,7 @@
             IconUri    = 'https://raw.githubusercontent.com/juribalimited/powershell-module-appr/main/resources/juriba_logo.jpeg'
 
             # ReleaseNotes of this module
-            ReleaseNotes = 'Initial release - Wave 1 cmdlets covering application management, smoke testing, publishing, and generic integration.'
+            ReleaseNotes = '0.2.0 - Add Get-JuribaAppRSession. Rename Get-JuribaAppRDefaultSettings -> Get-JuribaAppRDefaultSetting and Get-JuribaAppRTestStats -> Get-JuribaAppRTestStat (plural names kept as backward-compat aliases). Watch-* cmdlets now use Write-Progress + Write-Verbose for progress output. Raise minimum PowerShellVersion to 7.1 (required for Read-Host -MaskInput in example scripts). New interactive example scripts: Invoke-JuribaAppRSelfService.ps1 and Invoke-JuribaAppRSelfServiceWithTesting.ps1.'
 
         } # End of PSData hashtable
 

@@ -1,6 +1,6 @@
 # Juriba App Readiness PowerShell Module
 
-PowerShell module and automation examples for [Juriba App Readiness](https://www.juriba.com) (AppR). Provides 44 cmdlets covering the full application lifecycle — connect, upload, package, test, publish — plus ready-to-run example scripts for common automation patterns.
+PowerShell module and automation examples for [Juriba App Readiness](https://www.juriba.com) (AppR). Provides 43 cmdlets covering the full application lifecycle — connect, upload, package, test, publish — plus ready-to-run example scripts for common automation patterns.
 
 ## Compatibility
 
@@ -24,7 +24,7 @@ Update-Module Juriba.AppR
 
 ## Requirements
 
-- PowerShell 7.0 or later (PowerShell Core)
+- PowerShell 7.1 or later (PowerShell Core)
 - A Juriba App Readiness instance (v5.2+)
 - An API key
 
