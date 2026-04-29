@@ -1,4 +1,4 @@
-function Send-JuribaAppRSetupFile {
+﻿function Send-JuribaAppRSetupFile {
     <#
       .SYNOPSIS
       Uploads a setup file to Juriba App Readiness using chunked upload.
@@ -200,7 +200,7 @@ function Send-JuribaAppRSetupFile {
     Write-Verbose "Combine body: $jsonBody"
 
     try {
-        $combineResult = Invoke-RestMethod -Uri $combineUri -Method PUT `
+        $null = Invoke-RestMethod -Uri $combineUri -Method PUT `
             -Headers $headers -ContentType 'application/json' -Body $jsonBody
     }
     catch {
@@ -236,9 +236,8 @@ function Send-JuribaAppRSetupFile {
         FileName        = $fileName
         FileSize        = $fileSize
         TotalChunks     = $totalChunks
-        CombineResult   = $combineResult
-        ProductName     = $productName
-        CompanyName     = $companyName
-        ProductVersion  = $productVersion
+        Name            = $productName
+        Manufacturer    = $companyName
+        Version         = $productVersion
     }
 }

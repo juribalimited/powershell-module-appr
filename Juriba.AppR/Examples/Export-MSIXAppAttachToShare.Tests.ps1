@@ -1,17 +1,26 @@
-# Pester tests for Export-MSIXAppAttachToShare.ps1
+﻿# Pester tests for Export-MSIXAppAttachToShare.ps1
 # Mocks all module cmdlets to test script logic without a live instance.
 
 $ScriptPath = Join-Path $PSScriptRoot 'Export-MSIXAppAttachToShare.ps1'
 
 # We need to define stub functions for the module cmdlets so Mock can intercept them.
-function Connect-JuribaAppR { param($Instance, $APIKey, $SecretName) }
+# Pester Mock requires the stub's param signature to match the real cmdlet.
+# The `$null = $paramList` lines consume the params so PSScriptAnalyzer's
+# PSReviewUnusedParameter rule doesn't fire on what are, by design, unused in stubs.
+function Connect-JuribaAppR { param($Instance, $APIKey, $SecretName) $null = $Instance, $APIKey, $SecretName }
 function Disconnect-JuribaAppR { }
 function Get-JuribaAppRGenericIntegration { }
-function Get-JuribaAppRGenericIntegrationPublishing { param($IntegrationId, $Limit, $PackageTypes) }
-function Get-JuribaAppRGenericIntegrationProperty { param($IntegrationId, $PublishingId) }
-function Get-JuribaAppRGenericIntegrationSource { param($IntegrationId, $PublishingId, $SourcePath) }
-function Add-JuribaAppRGenericIntegrationLog { param($IntegrationId, $PublishingId, $Message, $Level, $Date) }
-function Update-JuribaAppRGenericIntegrationPublishingState { param($IntegrationId, $PublishingId, $PublishingState) }
+function Get-JuribaAppRGenericIntegrationPublishing { param($IntegrationId, $Limit, $PackageTypes) $null = $IntegrationId, $Limit, $PackageTypes }
+function Get-JuribaAppRGenericIntegrationProperty { param($IntegrationId, $PublishingId) $null = $IntegrationId, $PublishingId }
+function Get-JuribaAppRGenericIntegrationSource { param($IntegrationId, $PublishingId, $SourcePath) $null = $IntegrationId, $PublishingId, $SourcePath }
+function Add-JuribaAppRGenericIntegrationLog { param($IntegrationId, $PublishingId, $Message, $Level, $Date) $null = $IntegrationId, $PublishingId, $Message, $Level, $Date }
+function Update-JuribaAppRGenericIntegrationPublishingState {
+    [CmdletBinding(SupportsShouldProcess)]
+    param($IntegrationId, $PublishingId, $PublishingState)
+    $null = $IntegrationId, $PublishingId, $PublishingState
+    # Pester intercepts this stub via Mock; satisfy PSShouldProcess without a real side-effect.
+    if ($PSCmdlet.ShouldProcess('stub', 'noop')) { }
+}
 
 Describe 'Export-MSIXAppAttachToShare' {
 

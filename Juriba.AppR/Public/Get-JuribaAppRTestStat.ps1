@@ -1,4 +1,4 @@
-function Get-JuribaAppRTestStats {
+function Get-JuribaAppRTestStat {
     <#
       .SYNOPSIS
       Gets testing statistics from Juriba App Readiness.
@@ -13,14 +13,15 @@ function Get-JuribaAppRTestStats {
       Optional. The unique identifier of an application to get stats for.
       If omitted, returns overall testing statistics.
       .EXAMPLE
-      Get-JuribaAppRTestStats
+      Get-JuribaAppRTestStat
       Returns overall testing statistics.
       .EXAMPLE
-      Get-JuribaAppRTestStats -AppId 42
+      Get-JuribaAppRTestStat -AppId 42
       Returns testing statistics for application 42.
     #>
 
     [CmdletBinding()]
+    [Alias('Get-JuribaAppRTestStats')]
     param (
         [Parameter(Mandatory = $false)]
         [string]$Instance,

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Downloads MSIX App Attach packages from a Generic Integration and copies them
   to an SMB file share.
@@ -70,6 +70,8 @@
   if -IntegrationId is not specified.
 #>
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+    Justification = 'Interactive example script - user-facing colored console output for progress and results.')]
 [CmdletBinding(DefaultParameterSetName = 'SecretName')]
 param (
     [Parameter(Mandatory = $true)]

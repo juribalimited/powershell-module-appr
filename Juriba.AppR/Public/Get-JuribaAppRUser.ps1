@@ -53,6 +53,8 @@ function Get-JuribaAppRUser {
         $uri = "api/apm/users/all"
     }
     else {
+        # Default behavior: -Me switch or no explicit parameter set
+        Write-Verbose "Fetching current user (Me=$Me)"
         $uri = "api/apm/user/whoAmI/full"
     }
 

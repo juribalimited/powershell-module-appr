@@ -1,4 +1,4 @@
-function Watch-JuribaAppRApplicationCreation {
+﻿function Watch-JuribaAppRApplicationCreation {
     <#
       .SYNOPSIS
       Polls the creation status of an application until it completes or times out.
@@ -10,6 +10,10 @@ function Watch-JuribaAppRApplicationCreation {
 
       Returns the final status object which includes success/failure information
       and the application ID if creation succeeded.
+
+      Progress is surfaced via Write-Progress (progress bar in interactive hosts,
+      progress record on CI runners). Per-poll detail is emitted via Write-Verbose
+      (enable with -Verbose).
       .PARAMETER Instance
       The URL of the App Readiness instance. Not required if connected via Connect-JuribaAppR.
       .PARAMETER APIKey
@@ -21,18 +25,18 @@ function Watch-JuribaAppRApplicationCreation {
       .PARAMETER TimeoutMinutes
       The maximum number of minutes to poll before giving up. Default is 120 (2 hours).
       .PARAMETER Quiet
-      When specified, suppresses progress output. Only returns the final status object.
+      When specified, suppresses the Write-Progress bar. Only returns the final status object.
+      Verbose logging is still controlled independently via -Verbose.
       .EXAMPLE
       Watch-JuribaAppRApplicationCreation -UploadId "abc-123-def"
       Polls every 5 minutes until the application is created or 2 hours elapse.
       .EXAMPLE
-      Watch-JuribaAppRApplicationCreation -UploadId "abc-123-def" -IntervalSeconds 60 -TimeoutMinutes 30
-      Polls every 60 seconds with a 30-minute timeout.
+      Watch-JuribaAppRApplicationCreation -UploadId "abc-123-def" -IntervalSeconds 60 -TimeoutMinutes 30 -Verbose
+      Polls every 60 seconds with a 30-minute timeout; emits per-poll detail via Write-Verbose.
       .EXAMPLE
       $upload = Send-JuribaAppRSetupFile -FilePath "C:\Installers\App.exe"
       $app = New-JuribaAppRApplication -Uuid $upload.Uuid -FileName $upload.FileName -RunImmediately
       $result = Watch-JuribaAppRApplicationCreation -UploadId $upload.Uuid
-      if ($result.Status -eq 'Completed') { Write-Host "App ID: $($result.ApplicationId)" }
       Full end-to-end workflow: upload, create, and poll until complete.
     #>
 
@@ -61,18 +65,17 @@ function Watch-JuribaAppRApplicationCreation {
 
     $conn = Get-JuribaAppRConnection -Instance $Instance -APIKey $APIKey
 
-    $startTime = Get-Date
+    $startTime   = Get-Date
     $timeoutTime = $startTime.AddMinutes($TimeoutMinutes)
-    $pollCount = 0
+    $pollCount   = 0
+    $activity    = "Watching creation for upload $UploadId (timeout $TimeoutMinutes min, poll every $IntervalSeconds s)"
 
-    if (-not $Quiet) {
-        Write-Host "Watching application creation for upload $UploadId" -ForegroundColor Cyan
-        Write-Host "Polling every $IntervalSeconds seconds (timeout: $TimeoutMinutes minutes)" -ForegroundColor Cyan
-    }
+    Write-Verbose "$activity — started at $startTime"
 
     while ((Get-Date) -lt $timeoutTime) {
         $pollCount++
-        $elapsed = [Math]::Round(((Get-Date) - $startTime).TotalMinutes, 1)
+        $elapsed   = [Math]::Round(((Get-Date) - $startTime).TotalMinutes, 1)
+        $timestamp = (Get-Date).ToString('HH:mm:ss')
 
         # Check the creation state
         try {
@@ -80,34 +83,24 @@ function Watch-JuribaAppRApplicationCreation {
                 -Uri "api/apm/application/creation/$UploadId/state" -Method GET
         }
         catch {
-            if (-not $Quiet) {
-                Write-Warning "Poll #$pollCount ($elapsed min): Failed to get status - $($_.Exception.Message)"
-            }
+            Write-Verbose "[$timestamp] Poll #${pollCount}: failed to get status — $($_.Exception.Message)"
             Start-Sleep -Seconds $IntervalSeconds
             continue
         }
 
-        # Log the current state
-        $currentStatus = $state
+        # Render state as a short string for logging
         $statusText = if ($state -is [string]) { $state } else { $state | ConvertTo-Json -Compress -Depth 3 }
+        Write-Verbose "[$timestamp] Poll #$pollCount ($elapsed min): $statusText"
 
-        if (-not $Quiet) {
-            $timestamp = (Get-Date).ToString('HH:mm:ss')
-            Write-Host "[$timestamp] Poll #$pollCount ($elapsed min): $statusText" -ForegroundColor Gray
-        }
-
-        # Check for completion states
-        # The exact field names depend on the API response - we check common patterns
+        # Check for completion states. Field names vary — check common patterns.
         $isComplete = $false
-        $isFailed = $false
+        $isFailed   = $false
 
         if ($state -is [PSCustomObject] -or $state -is [hashtable]) {
-            # Check various possible status field names
             $statusValue = $state.status ?? $state.state ?? $state.Status ?? $state.State ?? ''
 
             if ($statusValue -is [string]) {
                 $statusLower = $statusValue.ToLower()
-
                 if ($statusLower -in @('completed', 'complete', 'done', 'success', 'succeeded', 'finished')) {
                     $isComplete = $true
                 }
@@ -116,48 +109,36 @@ function Watch-JuribaAppRApplicationCreation {
                 }
             }
 
-            # Also check for an applicationId being present (indicates completion)
+            # An applicationId being present also indicates completion
             $appId = $state.applicationId ?? $state.ApplicationId ?? $state.appId ?? $null
-            if ($appId -and $appId -gt 0) {
-                $isComplete = $true
-            }
+            if ($appId -and $appId -gt 0) { $isComplete = $true }
         }
 
         if ($isComplete) {
-            if (-not $Quiet) {
-                Write-Host "`nApplication creation completed successfully!" -ForegroundColor Green
-                $appId = $state.applicationId ?? $state.ApplicationId ?? $state.appId ?? 'Unknown'
-                Write-Host "Application ID: $appId" -ForegroundColor Green
-                Write-Host "Total time: $elapsed minutes ($pollCount polls)" -ForegroundColor Green
-            }
+            if (-not $Quiet) { Write-Progress -Activity $activity -Completed }
+            $appId = $state.applicationId ?? $state.ApplicationId ?? $state.appId ?? 'Unknown'
+            Write-Verbose "[$timestamp] Creation completed — ApplicationId=$appId, elapsed=$elapsed min, polls=$pollCount"
             return $state
         }
 
         if ($isFailed) {
-            if (-not $Quiet) {
-                Write-Host "`nApplication creation failed!" -ForegroundColor Red
-                Write-Host "Status: $statusText" -ForegroundColor Red
-                Write-Host "Total time: $elapsed minutes ($pollCount polls)" -ForegroundColor Red
-            }
+            if (-not $Quiet) { Write-Progress -Activity $activity -Completed }
+            Write-Warning "Application creation failed: $statusText"
             return $state
         }
 
-        # Wait for next poll
         if (-not $Quiet) {
-            Write-Progress -Activity "Watching application creation" `
-                -Status "Poll #$pollCount - Elapsed: $elapsed min - Next check in $IntervalSeconds sec" `
-                -PercentComplete (($elapsed / $TimeoutMinutes) * 100)
+            Write-Progress -Activity $activity `
+                -Status "Poll #$pollCount — elapsed $elapsed min — next check in $IntervalSeconds s" `
+                -PercentComplete ([Math]::Min(($elapsed / $TimeoutMinutes) * 100, 99))
         }
 
         Start-Sleep -Seconds $IntervalSeconds
     }
 
-    # Timeout reached
-    if (-not $Quiet) {
-        Write-Progress -Activity "Watching application creation" -Completed
-        Write-Warning "Timeout reached after $TimeoutMinutes minutes ($pollCount polls). Application may still be processing."
-        Write-Warning "You can continue checking manually: Get-JuribaAppRApplicationCreationState -UploadId '$UploadId'"
-    }
+    # Timeout
+    if (-not $Quiet) { Write-Progress -Activity $activity -Completed }
+    Write-Warning "Watch-JuribaAppRApplicationCreation: timeout after $TimeoutMinutes minutes ($pollCount polls). Check with: Get-JuribaAppRApplicationCreationState -UploadId '$UploadId'"
 
     return [PSCustomObject]@{
         Status    = 'Timeout'

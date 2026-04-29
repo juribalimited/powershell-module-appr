@@ -1,4 +1,4 @@
-function New-JuribaAppRApplication {
+﻿function New-JuribaAppRApplication {
     <#
       .SYNOPSIS
       Creates a new application in Juriba App Readiness.
@@ -138,7 +138,7 @@ function New-JuribaAppRApplication {
     # This matches the UI's GET /api/default-settings call before creating an app.
     $defaults = $null
     try {
-        $defaults = Get-JuribaAppRDefaultSettings -Instance $conn.Instance -APIKey $conn.APIKey
+        $defaults = Get-JuribaAppRDefaultSetting -Instance $conn.Instance -APIKey $conn.APIKey
         Write-Verbose "Default Settings: VMGroup=$($defaults.VMGroupForRepackaging), TestGroup=$($defaults.VMGroupForTesting), OutputBitmask=$($defaults.OutputFormatBitmask)"
     }
     catch {

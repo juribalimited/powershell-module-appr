@@ -1,4 +1,4 @@
-function Watch-JuribaAppRApplicationStatus {
+﻿function Watch-JuribaAppRApplicationStatus {
     <#
       .SYNOPSIS
       Polls the full workflow status of an application until it reaches a target state or times out.
@@ -9,6 +9,10 @@ function Watch-JuribaAppRApplicationStatus {
 
       Use this after the application has been created and is processing through the
       packaging, testing, and publishing pipeline.
+
+      Progress is surfaced via Write-Progress, which renders a progress bar in
+      interactive hosts and emits a progress record on CI runners. Per-poll detail
+      lines are emitted via Write-Verbose (enable with -Verbose).
       .PARAMETER Instance
       The URL of the App Readiness instance. Not required if connected via Connect-JuribaAppR.
       .PARAMETER APIKey
@@ -20,13 +24,14 @@ function Watch-JuribaAppRApplicationStatus {
       .PARAMETER TimeoutMinutes
       Maximum minutes to poll before giving up. Default is 240 (4 hours).
       .PARAMETER Quiet
-      When specified, suppresses progress output. Only returns the final status object.
+      When specified, suppresses the Write-Progress bar. Only returns the final status object.
+      Verbose logging is still controlled independently via -Verbose.
       .EXAMPLE
       Watch-JuribaAppRApplicationStatus -AppId 42
       Polls application 42 every 5 minutes until the workflow completes or 4 hours elapse.
       .EXAMPLE
-      Watch-JuribaAppRApplicationStatus -AppId 42 -IntervalSeconds 60 -TimeoutMinutes 60
-      Polls every 60 seconds with a 1-hour timeout.
+      Watch-JuribaAppRApplicationStatus -AppId 42 -IntervalSeconds 60 -TimeoutMinutes 60 -Verbose
+      Polls every 60 seconds with a 1-hour timeout; emits per-poll detail via Write-Verbose.
       .EXAMPLE
       $upload = Send-JuribaAppRSetupFile -FilePath "C:\Installers\App.exe"
       $app = New-JuribaAppRApplication -Uuid $upload.Uuid -FileName $upload.FileName -RunImmediately
@@ -60,19 +65,27 @@ function Watch-JuribaAppRApplicationStatus {
 
     $conn = Get-JuribaAppRConnection -Instance $Instance -APIKey $APIKey
 
-    $startTime = Get-Date
-    $timeoutTime = $startTime.AddMinutes($TimeoutMinutes)
-    $pollCount = 0
+    $startTime     = Get-Date
+    $timeoutTime   = $startTime.AddMinutes($TimeoutMinutes)
+    $pollCount     = 0
     $previousStatus = $null
+    $activity      = "Watching application $AppId (timeout $TimeoutMinutes min, poll every $IntervalSeconds s)"
+    $statusText    = $null
+    $progressPct   = 0
+    $appDetail     = $null
 
-    if (-not $Quiet) {
-        Write-Host "Watching application $AppId workflow status" -ForegroundColor Cyan
-        Write-Host "Polling every $IntervalSeconds seconds (timeout: $TimeoutMinutes minutes)" -ForegroundColor Cyan
-    }
+    Write-Verbose "$activity — started at $startTime"
+
+    # Terminal states — packaging complete or failed
+    $terminalStates = @(
+        'ReadyForQualityReview', 'QualityReview', 'ReadyForUat', 'Uat',
+        'ReadyForPublishing',    'Published',
+        'Failed',                'FailedPackaging', 'FailedToPackage', 'Cancelled'
+    )
 
     while ((Get-Date) -lt $timeoutTime) {
         $pollCount++
-        $elapsed = [Math]::Round(((Get-Date) - $startTime).TotalMinutes, 1)
+        $elapsed   = [Math]::Round(((Get-Date) - $startTime).TotalMinutes, 1)
         $timestamp = (Get-Date).ToString('HH:mm:ss')
 
         # Get app detail — the ext.status field is the authoritative packaging status.
@@ -82,63 +95,42 @@ function Watch-JuribaAppRApplicationStatus {
                 -Uri "api/apm/application/$AppId" -Method GET
         }
         catch {
-            if (-not $Quiet) {
-                Write-Warning "[$timestamp] Poll #${pollCount}: Failed to get app detail - $($_.Exception.Message)"
-            }
+            Write-Verbose "[$timestamp] Poll #${pollCount}: failed to get app detail — $($_.Exception.Message)"
             Start-Sleep -Seconds $IntervalSeconds
             continue
         }
 
-        $statusText = $appDetail.ext.status
+        $statusText  = $appDetail.ext.status
         $progressPct = $appDetail.ext.progressPercent
-        $currentStatus = "$statusText|$progressPct"
+        $currentKey  = "$statusText|$progressPct"
+        $changed     = $currentKey -ne $previousStatus
+        $previousStatus = $currentKey
 
-        # Only log when status changes (or first poll)
-        if ($currentStatus -ne $previousStatus) {
-            if (-not $Quiet) {
-                Write-Host "[$timestamp] Poll #$pollCount ($elapsed min): $statusText ($progressPct%)" -ForegroundColor Yellow
-            }
-            $previousStatus = $currentStatus
-        }
-        else {
-            if (-not $Quiet) {
-                Write-Host "[$timestamp] Poll #$pollCount ($elapsed min): $statusText ($progressPct%) - No change" -ForegroundColor DarkGray
-            }
-        }
+        # Emit per-poll detail via Write-Verbose (enable with -Verbose)
+        $delta = if ($changed) { 'changed' } else { 'no change' }
+        Write-Verbose "[$timestamp] Poll #$pollCount ($elapsed min): $statusText ($progressPct%) — $delta"
 
-        # Detect terminal states — packaging complete or failed
-        $terminalStates = @(
-            'ReadyForQualityReview'
-            'QualityReview'
-            'ReadyForUat'
-            'Uat'
-            'ReadyForPublishing'
-            'Published'
-            'Failed'
-            'FailedPackaging'
-            'FailedToPackage'
-            'Cancelled'
-        )
+        # Check for terminal state
         if ($statusText -and $terminalStates -contains $statusText) {
             if (-not $Quiet) {
-                Write-Progress -Activity "Watching application $AppId" -Completed
-                $color = if ($statusText -match 'Fail|Cancel') { 'Red' } else { 'Green' }
-                Write-Host "[$timestamp] Workflow reached: $statusText ($progressPct%)" -ForegroundColor $color
+                Write-Progress -Activity $activity -Completed
             }
+            Write-Verbose "[$timestamp] Workflow reached terminal state: $statusText ($progressPct%)"
             return [PSCustomObject]@{
-                Status      = $statusText
-                AppId       = $AppId
-                Progress    = $progressPct
-                Elapsed     = "$elapsed minutes"
-                PollCount   = $pollCount
-                AppDetail   = $appDetail
+                Status    = $statusText
+                AppId     = $AppId
+                Progress  = $progressPct
+                Elapsed   = "$elapsed minutes"
+                PollCount = $pollCount
+                AppDetail = $appDetail
             }
         }
 
-        # Write progress
+        # Update the progress bar. Percent reflects elapsed time against the timeout budget,
+        # capped at 99 so the bar only hits 100 when we hit a terminal state above.
         if (-not $Quiet) {
-            Write-Progress -Activity "Watching application $AppId" `
-                -Status "Poll #$pollCount - $statusText ($progressPct%) - Elapsed: $elapsed min" `
+            Write-Progress -Activity $activity `
+                -Status  "Poll #$pollCount — $statusText ($progressPct%) — elapsed $elapsed min" `
                 -PercentComplete ([Math]::Min(($elapsed / $TimeoutMinutes) * 100, 99))
         }
 
@@ -147,18 +139,16 @@ function Watch-JuribaAppRApplicationStatus {
 
     # Timeout
     if (-not $Quiet) {
-        Write-Progress -Activity "Watching application $AppId" -Completed
-        Write-Warning "Timeout reached after $TimeoutMinutes minutes ($pollCount polls)."
-        Write-Warning "Last status: $statusText ($progressPct%)"
+        Write-Progress -Activity $activity -Completed
     }
+    Write-Warning "Watch-JuribaAppRApplicationStatus: timeout after $TimeoutMinutes minutes ($pollCount polls). Last status: $statusText ($progressPct%)."
 
-    # Return the last known state
     return [PSCustomObject]@{
-        Status      = 'Timeout'
-        AppId       = $AppId
-        Progress    = $progressPct
-        Elapsed     = "$TimeoutMinutes minutes"
-        PollCount   = $pollCount
-        AppDetail   = $appDetail
+        Status    = 'Timeout'
+        AppId     = $AppId
+        Progress  = $progressPct
+        Elapsed   = "$TimeoutMinutes minutes"
+        PollCount = $pollCount
+        AppDetail = $appDetail
     }
 }

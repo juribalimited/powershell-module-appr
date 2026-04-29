@@ -41,7 +41,9 @@ function Set-JuribaAppRAPIKey {
       Stores the key in a specific named vault.
     #>
 
-    [CmdletBinding(DefaultParameterSetName = 'PlainText')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive confirmation shown to the user after storing the API key in the vault.')]
+    [CmdletBinding(DefaultParameterSetName = 'PlainText', SupportsShouldProcess, ConfirmImpact = 'Medium')]
     param (
         [Parameter(Mandatory = $true, Position = 0)]
         [string]$SecretName,
@@ -91,19 +93,24 @@ Then retry this command.
     # Store the secret
     $setParams = @{ Name = $SecretName; Secret = $plainKey }
     if ($VaultName) { $setParams['Vault'] = $VaultName }
+    $vaultMsg = if ($VaultName) { " in vault '$VaultName'" } else { " in the default vault" }
+
+    if (-not $PSCmdlet.ShouldProcess("secret '$SecretName'$vaultMsg", 'Set')) {
+        $plainKey = $null
+        return
+    }
 
     try {
         Set-Secret @setParams
     }
     catch {
-        throw "Failed to store secret '$SecretName'$( if ($VaultName) { " in vault '$VaultName'" } ). Error: $($_.Exception.Message)"
+        throw "Failed to store secret '$SecretName'$vaultMsg. Error: $($_.Exception.Message)"
     }
     finally {
         # Clear plain text from memory
         $plainKey = $null
     }
 
-    $vaultMsg = if ($VaultName) { " in vault '$VaultName'" } else { " in the default vault" }
     Write-Host "API key stored as '$SecretName'$vaultMsg." -ForegroundColor Green
     Write-Host "Connect with: Connect-JuribaAppR -Instance `"https://...`" -SecretName `"$SecretName`"" -ForegroundColor Cyan
 }

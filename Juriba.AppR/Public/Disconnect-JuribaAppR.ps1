@@ -10,13 +10,15 @@ function Disconnect-JuribaAppR {
       Clears the current App Readiness connection.
     #>
 
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive disconnect confirmation for CLI users.')]
     [CmdletBinding()]
     [Alias("Disconnect-AppR")]
     param ()
 
-    if ($global:appRConnection) {
-        $instance = $global:appRConnection.Instance
-        Remove-Variable -Name appRConnection -Scope Global -ErrorAction SilentlyContinue
+    if ($script:appRConnection) {
+        $instance = $script:appRConnection.Instance
+        $script:appRConnection = $null
         Write-Host "Disconnected from Juriba App Readiness at $instance" -ForegroundColor Yellow
     }
     else {

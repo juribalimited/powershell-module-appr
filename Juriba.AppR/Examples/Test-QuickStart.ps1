@@ -19,6 +19,9 @@
   .\Test-QuickStart.ps1 -InstanceUrl "https://demo.appr.juriba.app" -APIKey "your-key-here" -SetupFilePath "C:\Installers\Firefox-Setup.exe"
 #>
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+    Justification = 'Interactive example script - user-facing colored console output for test progress and results.')]
+[CmdletBinding()]
 param (
     [Parameter(Mandatory = $true)]
     [string]$InstanceUrl,
@@ -33,6 +36,7 @@ param (
 )
 
 $ErrorActionPreference = 'Stop'
+Write-Verbose "Target: $InstanceUrl (APIKey length: $($APIKey.Length))"
 
 # --- Locate and import the module ---
 $modulePath = Join-Path (Join-Path $PSScriptRoot '..') 'Juriba.AppR.psd1'
@@ -69,7 +73,7 @@ function Test-Cmdlet {
 # ============================================================
 Test-Cmdlet "Connect-JuribaAppR" {
     Connect-JuribaAppR -Instance $InstanceUrl -APIKey $APIKey -Verbose
-    Write-Host "  Connected as: $($global:appRConnection.Instance)"
+    Write-Host "  Connected as: $((Get-JuribaAppRSession).Instance)"
 }
 
 # ============================================================
@@ -80,11 +84,11 @@ Test-Cmdlet "Get-JuribaAppRAboutInfo" {
     Write-Host "  Returned $($info.Count) items"
 }
 
-$user = Test-Cmdlet "Get-JuribaAppRUser (whoami)" {
+Test-Cmdlet "Get-JuribaAppRUser (whoami)" {
     $u = Get-JuribaAppRUser
     Write-Host "  Logged in as: $($u.userName) ($($u.emailAddress))"
     $u
-}
+} | Out-Null
 
 $apps = Test-Cmdlet "Get-JuribaAppRApplicationList -AllUsers" {
     $list = Get-JuribaAppRApplicationList -AllUsers
@@ -197,9 +201,9 @@ if (-not $SkipUpload) {
                 RunImmediately = $true
                 Verbose        = $true
             }
-            if ($upload.ProductName)    { $splatCreate['Name']         = $upload.ProductName }
-            if ($upload.CompanyName)    { $splatCreate['Manufacturer'] = $upload.CompanyName }
-            if ($upload.ProductVersion) { $splatCreate['Version']      = $upload.ProductVersion }
+            if ($upload.Name)         { $splatCreate['Name']         = $upload.Name }
+            if ($upload.Manufacturer) { $splatCreate['Manufacturer'] = $upload.Manufacturer }
+            if ($upload.Version)      { $splatCreate['Version']      = $upload.Version }
 
             # Auto-select the first active VM group (status=2) for packaging
             $vmGroups = Get-JuribaAppRVMGroup
@@ -241,7 +245,7 @@ if (-not $SkipUpload) {
 # ============================================================
 Test-Cmdlet "Disconnect-JuribaAppR" {
     Disconnect-JuribaAppR
-    if (-not $global:appRConnection) { Write-Host "  Session cleared" }
+    if (-not (Get-JuribaAppRSession)) { Write-Host "  Session cleared" }
     else { throw "Session not cleared" }
 }
 

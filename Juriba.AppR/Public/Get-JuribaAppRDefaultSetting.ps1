@@ -1,4 +1,4 @@
-function Get-JuribaAppRDefaultSettings {
+﻿function Get-JuribaAppRDefaultSetting {
     <#
       .SYNOPSIS
       Gets the default settings for the App Readiness instance.
@@ -12,11 +12,12 @@ function Get-JuribaAppRDefaultSettings {
       .PARAMETER APIKey
       The API key for authentication. Not required if connected via Connect-JuribaAppR.
       .EXAMPLE
-      $settings = Get-JuribaAppRDefaultSettings
+      $settings = Get-JuribaAppRDefaultSetting
       Returns all default settings as an array of setting objects.
     #>
 
     [CmdletBinding()]
+    [Alias('Get-JuribaAppRDefaultSettings')]
     param (
         [Parameter(Mandatory = $false)]
         [string]$Instance,

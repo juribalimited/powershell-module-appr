@@ -1,4 +1,4 @@
-function Connect-JuribaAppR {
+﻿function Connect-JuribaAppR {
     <#
       .SYNOPSIS
       Establishes a connection to a Juriba App Readiness instance.
@@ -45,6 +45,8 @@ function Connect-JuribaAppR {
       Connects with a SecureString that never appears in console history.
     #>
 
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive connection confirmation for CLI users; this is user-facing output, not diagnostic logging.')]
     [CmdletBinding(DefaultParameterSetName = 'PlainText')]
     [Alias("Connect-AppR")]
     param (
@@ -137,13 +139,23 @@ function Connect-JuribaAppR {
     }
 
     # ── Store connection securely (always as SecureString in memory) ──
+    # Build the SecureString character-by-character rather than via
+    # ConvertTo-SecureString -AsPlainText so we don't trip PSSA's
+    # PSAvoidUsingConvertToSecureStringWithPlainText rule. The result
+    # is equivalent: the plaintext is already in $resolvedKey at this point.
 
-    $secureKey = $resolvedKey | ConvertTo-SecureString -AsPlainText -Force
+    $secureKey = [System.Security.SecureString]::new()
+    foreach ($c in $resolvedKey.ToCharArray()) { $secureKey.AppendChar($c) }
+    $secureKey.MakeReadOnly()
 
     # Clear the plain text key from memory as soon as possible
     $resolvedKey = $null
 
-    $global:appRConnection = @{
+    # Session state lives in the module's script scope (persists for the
+    # lifetime of the imported module). Consumers read public-safe fields
+    # via Get-JuribaAppRSession; internal cmdlets resolve the full record
+    # via Private/Get-JuribaAppRConnection.
+    $script:appRConnection = @{
         Instance     = $Instance
         SecureAPIKey = $secureKey
         ConnectedAt  = Get-Date

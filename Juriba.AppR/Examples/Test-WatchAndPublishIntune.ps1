@@ -38,6 +38,9 @@
   Watches every 60 seconds, publishing apps with green or amber test results.
 #>
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+    Justification = 'Interactive example script - user-facing colored console output for watcher progress and results.')]
+[CmdletBinding()]
 param (
     [Parameter(Mandatory = $true)]
     [string]$InstanceUrl,
