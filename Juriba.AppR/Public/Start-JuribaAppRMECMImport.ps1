@@ -1,44 +1,75 @@
 ﻿function Start-JuribaAppRMECMImport {
     <#
       .SYNOPSIS
-      Triggers an import of applications from Microsoft Endpoint Configuration Manager (MECM/SCCM) into App Readiness.
+      Triggers an import of applications discovered by an MECM/SCCM (or other integration) scan into App Readiness.
       .DESCRIPTION
-      Kicks off the AppR-side MECM import job. The import pulls the customer's
-      MECM application catalogue into App Readiness so the apps are visible
-      for analysis, packaging coverage, and republish workflows.
+      Kicks off the AppR-side import job for one or more CM applications
+      previously discovered by the integration's scan (visible via
+      Get-JuribaAppRMECMScanList). The import creates AppR Application
+      records for each selected scan-list row.
 
-      This is the inbound counterpart to Invoke-JuribaAppRPublishMECM (which
-      pushes packaged apps OUT to MECM). Use Get-JuribaAppRMECMImportAvailability
-      first to confirm the connector is configured before starting an import.
+      The underlying call is POST /api/admin/sccm/import with body:
+
+          { "filteringObjects": [
+              { "id": "<originalApplicationId>", "model": <int> }, ...
+            ] }
+
+      Two important things that are easy to get wrong:
+
+        - "id" must be the CM-side originalApplicationId (a string the
+          source-of-truth system assigned to the application), NOT the
+          AppR-side numeric id from the scan-list row. Sending the numeric
+          id silently no-ops — the server returns 200 with no record
+          created.
+        - "model" must mirror the model field on the scan-list row (the
+          server uses it to dispatch to the right importer). For an MECM
+          Application record this is 0.
+
+      The recommended pattern is to let the cmdlet derive both fields from
+      a scan-list row, either via pipeline or -InputObject.
+
+      Inbound counterpart to Invoke-JuribaAppRPublishMECM (which pushes
+      packaged apps OUT to MECM). Use Get-JuribaAppRMECMImportAvailability
+      first to confirm the connector is configured before starting an
+      import.
       .PARAMETER Instance
       The URL of the App Readiness instance. Not required if connected via Connect-JuribaAppR.
       .PARAMETER APIKey
       The API key for authentication. Not required if connected via Connect-JuribaAppR.
+      .PARAMETER InputObject
+      One or more scan-list rows from Get-JuribaAppRMECMScanList. Accepts
+      pipeline input. Each row contributes
+      { id = $row.originalApplicationId; model = $row.model } to the
+      filteringObjects body.
       .PARAMETER FilteringObjects
-      Optional. An array of MECM filter objects scoping which applications /
-      collections / folders to import. When omitted, the server's default
-      filter set is used (typically: import everything available).
-      Maps to the SccmRunJobModel.filteringObjects field on the underlying
-      POST /api/admin/sccm/import endpoint.
+      Pre-built filteringObjects array — escape hatch for callers
+      composing the body manually. Each element must be a hashtable /
+      object with `id` (string CM-side id) and `model` (int) properties.
+      Mutually exclusive with -InputObject and -Body.
       .PARAMETER Body
-      Optional. Full request body, escape hatch for callers who already have
-      a hashtable or who need to pass a property the FilteringObjects
-      parameter doesn't surface. Mutually exclusive with -FilteringObjects.
+      Full request body — escape hatch for callers who already have a
+      hashtable or who need to pass a property the other parameters don't
+      surface. Mutually exclusive with -InputObject and -FilteringObjects.
       .EXAMPLE
-      Start-JuribaAppRMECMImport
-      Starts a MECM import using the connector's default filter set.
+      Get-JuribaAppRMECMScanList -ProviderId 7 |
+          Where-Object { $_.applicationName -eq 'Notepad++' } |
+          Start-JuribaAppRMECMImport
+      The recommended flow — pick one row from the scan list and import
+      it. The cmdlet pulls originalApplicationId + model off the row.
+      .EXAMPLE
+      $rows = Get-JuribaAppRMECMScanList -ProviderId 7 |
+              Where-Object { $_.status -eq 1 -and $_.applicationName -like 'Adobe*' }
+      Start-JuribaAppRMECMImport -InputObject $rows
+      Bulk import — every Adobe app that is currently un-imported.
       .EXAMPLE
       Start-JuribaAppRMECMImport -FilteringObjects @(
-          @{ type = 'Collection'; id = 'SMS00001' }
+          @{ id = 'ScopeId_.../Application_...'; model = 0 }
       )
-      Starts an import scoped to a specific MECM collection.
-      .EXAMPLE
-      Start-JuribaAppRMECMImport -Body @{ filteringObjects = @() }
-      Equivalent to passing no filter — full hashtable form for callers who
-      compose the body elsewhere.
+      Manual form when the originalApplicationId is already in hand.
     #>
 
-    [CmdletBinding(SupportsShouldProcess, DefaultParameterSetName = 'FilterArray')]
+    [CmdletBinding(SupportsShouldProcess, DefaultParameterSetName = 'Pipeline')]
+    [OutputType([object])]
     param (
         [Parameter(Mandatory = $false)]
         [string]$Instance,
@@ -46,27 +77,49 @@
         [Parameter(Mandatory = $false)]
         [string]$APIKey,
 
-        [Parameter(Mandatory = $false, ParameterSetName = 'FilterArray')]
+        [Parameter(Mandatory = $false, ValueFromPipeline = $true,
+            ParameterSetName = 'Pipeline')]
+        [object[]]$InputObject,
+
+        [Parameter(Mandatory = $true, ParameterSetName = 'FilterArray')]
         [object[]]$FilteringObjects,
 
         [Parameter(Mandatory = $true, ParameterSetName = 'BodyHash')]
         [hashtable]$Body
     )
 
-    $conn = Get-JuribaAppRConnection -Instance $Instance -APIKey $APIKey
-
-    if ($PSCmdlet.ParameterSetName -eq 'BodyHash') {
-        $payload = $Body
-    }
-    else {
-        # Always send a body (even when empty) — the server expects an
-        # SccmRunJobModel JSON object on POST and a missing body would
-        # be rejected by the OData / model-binder pipeline.
-        $payload = @{ filteringObjects = @($FilteringObjects) }
+    begin {
+        $conn = Get-JuribaAppRConnection -Instance $Instance -APIKey $APIKey
+        $collected = New-Object System.Collections.Generic.List[object]
     }
 
-    if ($PSCmdlet.ShouldProcess($conn.Instance, 'Start MECM import')) {
-        Invoke-JuribaAppRRestMethod -Instance $conn.Instance -APIKey $conn.APIKey `
-            -Uri 'api/admin/sccm/import' -Method POST -Body $payload
+    process {
+        if ($PSCmdlet.ParameterSetName -eq 'Pipeline' -and $InputObject) {
+            foreach ($row in $InputObject) {
+                if ($null -eq $row.originalApplicationId) {
+                    throw "Input row missing 'originalApplicationId'. Pass scan-list rows from Get-JuribaAppRMECMScanList, or use -FilteringObjects to compose the body manually."
+                }
+                $collected.Add(@{
+                    id    = [string]$row.originalApplicationId
+                    model = [int]$row.model
+                })
+            }
+        }
+    }
+
+    end {
+        switch ($PSCmdlet.ParameterSetName) {
+            'BodyHash'    { $payload = $Body }
+            'FilterArray' { $payload = @{ filteringObjects = @($FilteringObjects) } }
+            default       { $payload = @{ filteringObjects = $collected.ToArray() } }
+        }
+
+        $count = if ($payload.filteringObjects) { @($payload.filteringObjects).Count } else { 0 }
+        $target = "$($conn.Instance) ($count application(s))"
+
+        if ($PSCmdlet.ShouldProcess($target, 'Start MECM import')) {
+            Invoke-JuribaAppRRestMethod -Instance $conn.Instance -APIKey $conn.APIKey `
+                -Uri 'api/admin/sccm/import' -Method POST -Body $payload
+        }
     }
 }

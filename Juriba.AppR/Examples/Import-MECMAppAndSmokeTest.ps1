@@ -30,10 +30,11 @@
        parameters, finally to an interactive secure prompt.
     2. Confirms a configured MECM-type provider with isImportEnabled=$true
        exists. Aborts with a clear message if not.
-    3. Triggers Start-JuribaAppRMECMImport. By default this kicks the
-       import job with no FilteringObjects, which pulls everything visible
-       to the connector. If you have a CM-side id and only want to pull
-       one application, pass `-FilteringSccmId <id>` to scope it.
+    3. Reads the provider's scan list (Get-JuribaAppRMECMScanList) and
+       finds the row matching -CMApplicationName. The scan list is what
+       the AppR UI's "Scan Import" page binds to; each row carries the
+       CM-side originalApplicationId + model that the import API expects.
+       Pipes the matching row into Start-JuribaAppRMECMImport.
     4. Polls Get-JuribaAppRApplicationList -Query <CMApplicationName> on
        a configurable interval. The MECM importer creates AppR application
        records as it runs; we wait for the one matching our CM name to
@@ -93,11 +94,12 @@
   the templated form, not the raw CM name. If you know that templated
   form, pass it here; otherwise the script searches by `CMApplicationName`.
 
-.PARAMETER FilteringSccmId
-  Optional. If supplied, the import is scoped to a single CM-side
-  identifier (the SccmId of the application). When omitted, the import
-  runs with no filter — typically pulling everything the connector
-  can see.
+.PARAMETER ImportEverything
+  When set, skips the scan-list lookup and invokes
+  Start-JuribaAppRMECMImport with no filteringObjects, which imports
+  every discoverable CM application the connector can see. Use sparingly
+  — most customer scenarios want to scope to a single CM application
+  (the default, driven off -CMApplicationName).
 
 .PARAMETER PollSeconds
   How often to poll while waiting. Default 15 seconds.
@@ -155,7 +157,7 @@ param(
 
     [Parameter(Mandatory = $false)] [string]$PackageType        = 'Msi',
     [Parameter(Mandatory = $false)] [string]$AppRApplicationName,
-    [Parameter(Mandatory = $false)] [string]$FilteringSccmId,
+    [Parameter(Mandatory = $false)] [switch]$ImportEverything,
 
     [Parameter(Mandatory = $false)] [switch]$SkipImport,
     [Parameter(Mandatory = $false)] [int]   $PollSeconds        = 15,
@@ -192,22 +194,43 @@ if (-not $mecmProvider) {
 Write-Host "  using provider id=$($mecmProvider.id) ($($mecmProvider.integration ?? $mecmProvider.friendlyName))" -ForegroundColor DarkGray
 
 # ── 3. Trigger the import (unless told to skip) ───────────────────────────
+# The import API takes filteringObjects with the CM-side
+# originalApplicationId (string) + model (int) — NOT the AppR-side
+# numeric id from the scan list. We let Start-JuribaAppRMECMImport derive
+# both fields from the matching scan-list row to avoid getting it wrong
+# (sending a numeric id silently no-ops on the server).
 if (-not $SkipImport) {
     $availability = Get-JuribaAppRMECMImportAvailability
     Write-Verbose "MECM import availability: $availability"
 
-    if ($PSCmdlet.ShouldProcess($CMApplicationName, "Trigger MECM import")) {
-        if ($FilteringSccmId) {
-            # FilteringObjectsModel: { id: <CM-side id>, model: <enum 1..3> }.
-            # model = 1 corresponds to Application — the most common case
-            # for a customer scoping import to one specific CM app.
-            Start-JuribaAppRMECMImport `
-                -FilteringObjects @(@{ id = $FilteringSccmId; model = 1 }) `
-                -Confirm:$false | Out-Null
-            Write-Host "→ Import started (filtered to CM application id $FilteringSccmId)." -ForegroundColor Cyan
-        } else {
-            Start-JuribaAppRMECMImport -Confirm:$false | Out-Null
+    if ($ImportEverything) {
+        if ($PSCmdlet.ShouldProcess($mecmProvider.id, "Trigger MECM import (everything)")) {
+            Start-JuribaAppRMECMImport -FilteringObjects @() -Confirm:$false | Out-Null
             Write-Host "→ Import started (no filter — imports everything the provider can see)." -ForegroundColor Cyan
+        }
+    } else {
+        Write-Host "→ Reading scan list for provider id=$($mecmProvider.id) to find '$CMApplicationName'..." -ForegroundColor Cyan
+        $scanRows = @(Get-JuribaAppRMECMScanList -ProviderId $mecmProvider.id)
+        # status enum: the SPA excludes 2, 4, 5 from selection (already
+        # imported / in flight). Status 1 is "discovered, available".
+        $candidate = $scanRows |
+            Where-Object { $_.applicationName -ieq $CMApplicationName -and $_.status -notin @(2,4,5) } |
+            Select-Object -First 1
+        if (-not $candidate) {
+            $candidate = $scanRows |
+                Where-Object { $_.applicationName -like "*$CMApplicationName*" -and $_.status -notin @(2,4,5) } |
+                Select-Object -First 1
+        }
+        if (-not $candidate) {
+            $importedAlready = $scanRows | Where-Object { $_.applicationName -ieq $CMApplicationName -and $_.status -in @(2,4,5) }
+            if ($importedAlready) {
+                Write-Host "  '$CMApplicationName' is already imported (scan-list status=$($importedAlready[0].status)). Skipping import." -ForegroundColor Yellow
+            } else {
+                throw "No scan-list row matched '$CMApplicationName' on provider id $($mecmProvider.id). Run Get-JuribaAppRMECMScanList -ProviderId $($mecmProvider.id) | Select applicationName to see what is discoverable."
+            }
+        } elseif ($PSCmdlet.ShouldProcess($candidate.applicationName, "Trigger MECM import")) {
+            $candidate | Start-JuribaAppRMECMImport -Confirm:$false | Out-Null
+            Write-Host "→ Import started for '$($candidate.applicationName)' (originalApplicationId=$($candidate.originalApplicationId), model=$($candidate.model))." -ForegroundColor Cyan
         }
     }
 }
