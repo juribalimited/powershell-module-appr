@@ -34,14 +34,17 @@
        finds the row matching -CMApplicationName. The scan list is what
        the AppR UI's "Scan Import" page binds to; each row carries the
        CM-side originalApplicationId + model that the import API expects.
-       Pipes the matching row into Start-JuribaAppRMECMImport.
-    4. Polls Get-JuribaAppRApplicationList -Query <CMApplicationName> on
-       a configurable interval. The MECM importer creates AppR application
-       records as it runs; we wait for the one matching our CM name to
-       appear. (If your environment uses a custom applicationNameTemplate
-       on the connector — see Get-JuribaAppRMECMProvider -Id <providerId>
-       — the AppR app name may differ from the raw CM name. Pass that
-       templated form via -AppRApplicationName if needed.)
+       Snapshots the existing AppR application ids, then pipes the
+       matching row into Start-JuribaAppRMECMImport.
+    4. Polls Get-JuribaAppRApplicationList -AllUsers -Lite for new ids
+       (i.e. not in the pre-import snapshot). The MECM importer creates
+       AppR application records during the job, but the AppR-side name
+       it picks is the *extracted* name (e.g. "Notepad++") rather than
+       the templated scan-list name (e.g.
+       "x64_Notepad++_Notepad_1.5_1.0_GLOBAL"). The snapshot-diff
+       approach side-steps that mismatch entirely. When several new
+       apps appear in the same window we prefer the one whose name
+       contains -CMApplicationName, otherwise the most recent.
     5. Once the AppR application id is resolved, calls
        Start-JuribaAppRSmokeTest -AppId <id> -PackageType <type>
        -VMGroupId <id>.
@@ -89,10 +92,12 @@
   the import produced (visible on the AppR application detail).
 
 .PARAMETER AppRApplicationName
-  Optional. When the provider's applicationNameTemplate transforms the
-  CM name (e.g. "[Name]_[Version]"), the AppR application appears under
-  the templated form, not the raw CM name. If you know that templated
-  form, pass it here; otherwise the script searches by `CMApplicationName`.
+  Optional. Used only when -SkipImport is set: the name of the existing
+  AppR application to smoke-test. When importing, the script identifies
+  the resulting app via snapshot-diff and ignores this parameter — the
+  imported app's AppR-side name is whatever the importer extracted from
+  the installer, which usually doesn't match the scan-list templated
+  name.
 
 .PARAMETER ImportEverything
   When set, skips the scan-list lookup and invokes
@@ -193,15 +198,38 @@ if (-not $mecmProvider) {
 }
 Write-Host "  using provider id=$($mecmProvider.id) ($($mecmProvider.integration ?? $mecmProvider.friendlyName))" -ForegroundColor DarkGray
 
-# ── 3. Trigger the import (unless told to skip) ───────────────────────────
+# ── 3. Trigger the import + identify the resulting AppR app ───────────────
 # The import API takes filteringObjects with the CM-side
 # originalApplicationId (string) + model (int) — NOT the AppR-side
 # numeric id from the scan list. We let Start-JuribaAppRMECMImport derive
 # both fields from the matching scan-list row to avoid getting it wrong
 # (sending a numeric id silently no-ops on the server).
-if (-not $SkipImport) {
+#
+# The AppR-side name of the imported app is the *extracted* name from
+# the installer (e.g. "Notepad++"), not the scan-list templated name
+# (e.g. "x64_Notepad++_Notepad_1.5_1.0_GLOBAL"), so we can't lookup by
+# the CMApplicationName string. Snapshot the AppR app ids before
+# triggering the import, then poll for any new ids.
+$apprApp = $null
+if ($SkipImport) {
+    Write-Host "→ -SkipImport: looking up an existing AppR application by name..." -ForegroundColor Cyan
+    $lookupNames = @($AppRApplicationName, $CMApplicationName) | Where-Object { $_ }
+    $apps = @(Get-JuribaAppRApplicationList -AllUsers -Lite)
+    foreach ($q in $lookupNames) {
+        $apprApp = $apps | Where-Object { $_.name -ieq $q } | Select-Object -First 1
+        if (-not $apprApp) { $apprApp = $apps | Where-Object { $_.name -like "*$q*" } | Select-Object -First 1 }
+        if ($apprApp) { break }
+    }
+    if (-not $apprApp) {
+        throw "-SkipImport set but no AppR application matched '$CMApplicationName' (or -AppRApplicationName if supplied). List with: Get-JuribaAppRApplicationList -AllUsers -Lite"
+    }
+} else {
     $availability = Get-JuribaAppRMECMImportAvailability
     Write-Verbose "MECM import availability: $availability"
+
+    Write-Host "→ Snapshotting existing AppR app ids before import..." -ForegroundColor Cyan
+    $beforeIds = @(Get-JuribaAppRApplicationList -AllUsers -Lite | Select-Object -ExpandProperty id)
+    Write-Host "  $($beforeIds.Count) existing apps." -ForegroundColor DarkGray
 
     if ($ImportEverything) {
         if ($PSCmdlet.ShouldProcess($mecmProvider.id, "Trigger MECM import (everything)")) {
@@ -222,52 +250,40 @@ if (-not $SkipImport) {
                 Select-Object -First 1
         }
         if (-not $candidate) {
-            $importedAlready = $scanRows | Where-Object { $_.applicationName -ieq $CMApplicationName -and $_.status -in @(2,4,5) }
-            if ($importedAlready) {
-                Write-Host "  '$CMApplicationName' is already imported (scan-list status=$($importedAlready[0].status)). Skipping import." -ForegroundColor Yellow
-            } else {
-                throw "No scan-list row matched '$CMApplicationName' on provider id $($mecmProvider.id). Run Get-JuribaAppRMECMScanList -ProviderId $($mecmProvider.id) | Select applicationName to see what is discoverable."
-            }
-        } elseif ($PSCmdlet.ShouldProcess($candidate.applicationName, "Trigger MECM import")) {
+            throw "No scan-list row matched '$CMApplicationName' on provider id $($mecmProvider.id) with an importable status. Run Get-JuribaAppRMECMScanList -ProviderId $($mecmProvider.id) | Select applicationName, status to see what is discoverable."
+        }
+        if ($PSCmdlet.ShouldProcess($candidate.applicationName, "Trigger MECM import")) {
             $candidate | Start-JuribaAppRMECMImport -Confirm:$false | Out-Null
             Write-Host "→ Import started for '$($candidate.applicationName)' (originalApplicationId=$($candidate.originalApplicationId), model=$($candidate.model))." -ForegroundColor Cyan
         }
     }
-}
 
-# ── 4. Wait for the AppR application to appear ────────────────────────────
-# Search by CM name first, then templated form if provided. The MECM
-# importer creates AppR Application records during the job; the
-# application list is the authoritative source for our id.
-#
-# We use Get-JuribaAppRApplicationList -AllUsers -Lite + client-side
-# filtering rather than -Query, because -Query hits a broader KB-style
-# index (e.g. it returns 332 hits for 'Notepad'), not the AppR-instance
-# application list. The Lite list returns flat records with id / name /
-# manufacturer / version, which is exactly what we need to pin down a
-# single AppR application id.
-$lookupNames = @($CMApplicationName)
-if ($AppRApplicationName -and $AppRApplicationName -ne $CMApplicationName) {
-    $lookupNames += $AppRApplicationName
-}
-
-$deadline = (Get-Date).AddMinutes($TimeoutMinutes)
-$apprApp  = $null
-while ((Get-Date) -lt $deadline) {
-    $apps = @(Get-JuribaAppRApplicationList -AllUsers -Lite -ErrorAction SilentlyContinue)
-    foreach ($q in $lookupNames) {
-        # Prefer exact match; fall back to case-insensitive substring.
-        $exact = $apps | Where-Object { $_.name -ieq $q }
-        if ($exact) { $apprApp = $exact | Select-Object -First 1; break }
-        $partial = $apps | Where-Object { $_.name -like "*$q*" }
-        if ($partial) { $apprApp = $partial | Select-Object -First 1; break }
+    # Poll for any new app id (i.e. not in the pre-import snapshot).
+    # Imports take a few minutes — be patient.
+    $deadline = (Get-Date).AddMinutes($TimeoutMinutes)
+    while ((Get-Date) -lt $deadline) {
+        Start-Sleep -Seconds $PollSeconds
+        $now = @(Get-JuribaAppRApplicationList -AllUsers -Lite)
+        $new = @($now | Where-Object { $beforeIds -notcontains $_.id })
+        if ($new.Count -gt 0) {
+            # When several apps materialise (e.g. ImportEverything), pick
+            # the one whose name best matches the requested CM app.
+            $apprApp = $new |
+                Where-Object { $_.name -like "*$CMApplicationName*" } |
+                Select-Object -First 1
+            if (-not $apprApp) { $apprApp = $new | Select-Object -First 1 }
+            Write-Host "  ✓ Found new AppR app: id=$($apprApp.id), name=$($apprApp.name)" -ForegroundColor Green
+            if ($new.Count -gt 1) {
+                Write-Host "    ($($new.Count) new apps in total — picked the closest match. Others: $(($new | Where-Object id -ne $apprApp.id | ForEach-Object { "$($_.id):$($_.name)" }) -join ', '))" -ForegroundColor DarkGray
+            }
+            break
+        }
+        Write-Host "  …still waiting (no new app yet, $((@($now)).Count) total)" -ForegroundColor DarkGray
     }
-    if ($apprApp) { break }
-    Start-Sleep -Seconds $PollSeconds
-    Write-Host "  …still waiting for an AppR application matching '$CMApplicationName'" -ForegroundColor DarkGray
-}
-if (-not $apprApp) {
-    throw "Timed out after $TimeoutMinutes min. No AppR application matched '$CMApplicationName' (or '$AppRApplicationName' if supplied). Check Get-JuribaAppRMECMImportEvent for import errors and the provider's applicationNameTemplate (Get-JuribaAppRMECMProvider -Id $($mecmProvider.id)) to see how CM names are transformed."
+
+    if (-not $apprApp) {
+        throw "Timed out after $TimeoutMinutes min. No new AppR application appeared. Check the AppR UI for import errors, and verify the provider host (Get-JuribaAppRMECMProvider -Id $($mecmProvider.id) | Select hostname, sourcePath) is reachable."
+    }
 }
 
 # -Lite returns flat records (id, name, manufacturer, version at root);
