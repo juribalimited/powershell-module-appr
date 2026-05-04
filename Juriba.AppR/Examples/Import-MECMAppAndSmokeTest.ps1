@@ -57,8 +57,9 @@
     capture the response trace id (visible with -Verbose) and add it to
     the open ticket.
   - This script intentionally does NOT wait for the smoke test to
-    finish. Hand the returned `AppRApplicationId` to Watch-JuribaApp
-    RApplicationStatus or Get-JuribaAppRTestResult for that.
+    finish. Hand the returned `AppRApplicationId` to
+    Watch-JuribaAppRApplicationStatus or Get-JuribaAppRTestResult
+    for that.
   - Plain-text -APIKey strings should never be checked in. The script
     accepts a SecureString (-SecureAPIKey) or prompts for one. Keys
     stored in the SecretManagement vault can be used by calling

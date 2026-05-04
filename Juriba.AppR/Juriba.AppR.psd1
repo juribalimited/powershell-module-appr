@@ -12,7 +12,7 @@
     RootModule        = 'Juriba.AppR.psm1'
 
     # Version number of this module.
-    ModuleVersion     = '0.3.1'
+    ModuleVersion     = '0.3.2'
 
     # Supported PSEditions
     CompatiblePSEditions = @('Core')
@@ -143,7 +143,9 @@
             IconUri    = 'https://raw.githubusercontent.com/juribalimited/powershell-module-appr/main/resources/juriba_logo.jpeg'
 
             # ReleaseNotes of this module
-            ReleaseNotes = '0.3.1 - Fix the MECM import body shape and add the missing scan-list cmdlet. Reverse-engineered the AppR SPA''s Scan Import page (importSelectedApplications in chunk-46NRXZRT.js): the import API expects { filteringObjects: [{ id: <originalApplicationId>, model: <int> }] } where id is the CM-side string and model is mirrored verbatim from the scan-list row (typically 0 for an MECM Application). The previous Start-JuribaAppRMECMImport sent the AppR-side numeric id with model=1, which the server accepts with 200 OK but silently no-ops. New: Get-JuribaAppRMECMScanList (wraps GET /api/integration/{providerId}/scan/list — returns rows with originalApplicationId + model + status). Updated: Start-JuribaAppRMECMImport accepts pipeline input from Get-JuribaAppRMECMScanList and derives the body fields from each row; the FilteringObjects / Body parameter sets remain as escape hatches. Examples/Import-MECMAppAndSmokeTest.ps1 rewritten to use the scan-list lookup instead of -FilteringSccmId; -FilteringSccmId is replaced by -ImportEverything for the bulk case.
+            ReleaseNotes = '0.3.2 - Address PR review feedback. Remove-JuribaAppRMECMProvider: drop ConfirmImpact=High (which auto-prompted on -Id deletion too) for ConfirmImpact=Medium plus an explicit ShouldContinue gate on the -All branch — single-id removal now uses the regular Confirm flow, bulk removal still prompts unless -Confirm:$false. Get-JuribaAppRMECMImportAvailability: document the integer return value (0=unavailable, 1=ready) and add a guard-pattern example. Examples/Import-MECMAppAndSmokeTest.ps1: fix Watch-JuribaAppRApplicationStatus name split across two lines in the description.
+
+0.3.1 - Fix the MECM import body shape and add the missing scan-list cmdlet. Reverse-engineered the AppR SPA''s Scan Import page (importSelectedApplications in chunk-46NRXZRT.js): the import API expects { filteringObjects: [{ id: <originalApplicationId>, model: <int> }] } where id is the CM-side string and model is mirrored verbatim from the scan-list row (typically 0 for an MECM Application). The previous Start-JuribaAppRMECMImport sent the AppR-side numeric id with model=1, which the server accepts with 200 OK but silently no-ops. New: Get-JuribaAppRMECMScanList (wraps GET /api/integration/{providerId}/scan/list — returns rows with originalApplicationId + model + status). Updated: Start-JuribaAppRMECMImport accepts pipeline input from Get-JuribaAppRMECMScanList and derives the body fields from each row; the FilteringObjects / Body parameter sets remain as escape hatches. Examples/Import-MECMAppAndSmokeTest.ps1 rewritten to use the scan-list lookup instead of -FilteringSccmId; -FilteringSccmId is replaced by -ImportEverything for the bulk case.
 
 0.3.0 - Add MECM (SCCM) import + provider cmdlets covering /api/admin/sccm/*. New: Get-JuribaAppRMECMProvider (list configured integration providers — Intune + MECM — list or single by -Id), Get-JuribaAppRMECMImportAvailability (preflight), Get-JuribaAppRMECMImportEvent (event log), Start-JuribaAppRMECMImport (-FilteringObjects scopes which apps to import), Set-JuribaAppRMECMProviderUniqueness (toggle uniqueness on a provider), Remove-JuribaAppRMECMProvider (-Id or -All). Also adds Examples/Import-MECMAppAndSmokeTest.ps1 — end-to-end customer scenario: import a single CM app then run a smoke test against a chosen VM group.
 

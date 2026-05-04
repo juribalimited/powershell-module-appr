@@ -10,8 +10,10 @@
       to reset connector state before re-configuring with different
       hostname / site code / template values.
 
-      Both forms support -WhatIf and -Confirm; -All has ConfirmImpact=High
-      because dropping every provider can wipe a lot of state in one call.
+      Both forms support -WhatIf and -Confirm. The -All branch always
+      prompts (even with $ConfirmPreference=None) because dropping every
+      provider can wipe a lot of state in one call; -Confirm:$false
+      still suppresses the prompt for unattended use.
       .PARAMETER Instance
       The URL of the App Readiness instance. Not required if connected via Connect-JuribaAppR.
       .PARAMETER APIKey
@@ -20,15 +22,20 @@
       Removes a single provider configuration by id.
       .PARAMETER All
       Removes every configured provider. Mutually exclusive with -Id.
+      .PARAMETER Force
+      With -All, suppresses the bulk-removal prompt. Equivalent to
+      -Confirm:$false but also bypasses an explicit ShouldContinue
+      gate. Has no effect on the -Id path.
       .EXAMPLE
       Remove-JuribaAppRMECMProvider -Id 7
       Removes a single provider record.
       .EXAMPLE
-      Remove-JuribaAppRMECMProvider -All -Confirm:$false
-      Removes every configured provider without prompting.
+      Remove-JuribaAppRMECMProvider -All -Force
+      Removes every configured provider without any prompt — for
+      unattended scripts.
     #>
 
-    [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High', DefaultParameterSetName = 'ById')]
+    [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Medium', DefaultParameterSetName = 'ById')]
     param (
         [Parameter(Mandatory = $false)]
         [string]$Instance,
@@ -40,7 +47,10 @@
         [int]$Id,
 
         [Parameter(Mandatory = $true, ParameterSetName = 'All')]
-        [switch]$All
+        [switch]$All,
+
+        [Parameter(ParameterSetName = 'All')]
+        [switch]$Force
     )
 
     $conn = Get-JuribaAppRConnection -Instance $Instance -APIKey $APIKey
@@ -53,6 +63,19 @@
         $uri = "api/admin/sccm/$Id"
         $target = "integration provider $Id"
         $action = 'Remove integration provider'
+    }
+
+    # ConfirmImpact is per-function and applies to the whole cmdlet. Keep
+    # the function at Medium so single-id deletion uses the regular
+    # Confirm flow, then layer an explicit ShouldContinue on the -All
+    # branch so the bulk path still prompts when $ConfirmPreference is
+    # below High. -Confirm:$false suppresses both gates for unattended use.
+    if ($All -and -not $Force -and -not $WhatIfPreference -and $ConfirmPreference -ne 'None') {
+        if (-not $PSCmdlet.ShouldContinue(
+                'This will remove ALL configured integration providers (every Intune + MECM connector). Continue?',
+                'Confirm bulk removal')) {
+            return
+        }
     }
 
     if ($PSCmdlet.ShouldProcess($target, $action)) {
