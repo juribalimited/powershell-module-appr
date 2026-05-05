@@ -45,8 +45,23 @@
        approach side-steps that mismatch entirely. When several new
        apps appear in the same window we prefer the one whose name
        contains -CMApplicationName, otherwise the most recent.
-    5. Once the AppR application id is resolved, calls
-       Start-JuribaAppRSmokeTest -AppId <id> -PackageType <type>
+    5. Assigns ownership of the new app to the API-key user (resolved
+       via /api/apm/user/whoAmI). MECM-imported apps come back with no
+       owner, which makes "Created By" on subsequent smoke-test runs
+       fall back to the integration connector's system user (e.g.
+       appmintegrationconnectorsystemuser@juriba.com). Setting the
+       owner makes the smoke-test attribution match the calling user.
+    6. Polls Get-JuribaAppRApplication on the new app until
+       availPackages.<PackageType> is true. The MECM importer creates
+       the AppR application record early, then copies the package zip
+       from the MECM source path; only after the copy completes and
+       the importer derives a deployable package of the requested
+       type does Start-JuribaAppRSmokeTest accept the call (otherwise
+       it returns "CantFindTheAppInformation"). If the requested
+       PackageType never becomes available the script reports which
+       types ARE present so the caller can pick one or fix the MECM
+       deployment-type configuration.
+    7. Calls Start-JuribaAppRSmokeTest -AppId <id> -PackageType <type>
        -VMGroupId <id>.
 
   Known gaps / things to watch
@@ -299,7 +314,78 @@ if (-not $apprAppId) {
 }
 Write-Host "→ Resolved AppR application id: $apprAppId" -ForegroundColor Green
 
-# ── 5. Start the smoke test ───────────────────────────────────────────────
+# ── 5. Claim ownership for the calling user ───────────────────────────────
+# MECM imports come back with no owner — without this step the UI's
+# "Created By" on the smoke test falls back to the connector's system
+# user (e.g. appmintegrationconnectorsystemuser@juriba.com), not the
+# API caller. /api/apm/user/whoAmI returns the calling user's id
+# directly (Get-JuribaAppRUser doesn't surface it), so we go via the
+# rest method helper. Skip when -SkipImport: the caller picked an
+# existing app that presumably already has the right owner.
+if (-not $SkipImport) {
+    try {
+        $me = Get-JuribaAppRUser -Me
+        if ($me.userId) {
+            Write-Host "→ Assigning owner=$($me.userId) ($($me.userName)) on app $apprAppId..." -ForegroundColor Cyan
+            Set-JuribaAppRApplicationOwner -AppId $apprAppId -UserId ([int]$me.userId) -Confirm:$false | Out-Null
+        } else {
+            Write-Warning "Get-JuribaAppRUser -Me did not return a userId; skipping owner assignment. Smoke-test attribution will fall back to the integration connector's system user."
+        }
+    } catch {
+        Write-Warning "Couldn't assign owner: $($_.Exception.Message). Smoke-test attribution will fall back to the integration connector's system user."
+    }
+}
+
+# ── 6. Wait for the requested PackageType to be available ─────────────────
+# Get-JuribaAppRApplication returns availPackages — a per-package-type
+# boolean map (msi, msix, intune, appV, psadt, appAttach, etc.). The
+# importer first creates the AppR app record, then copies the source
+# zip, then derives deployable packages from it. Smoke testing the
+# requested PackageType returns "CantFindTheAppInformation" until the
+# matching availPackages flag flips true.
+if (-not $SkipImport) {
+    # Map the script's friendly PackageType to the availPackages key
+    # the server returns (it's lowercase + abbreviated for some types).
+    $availKey = switch ($PackageType) {
+        'Msi'       { 'msi' }
+        'Msix'      { 'msiX' }
+        'IntuneWin' { 'intune' }
+        'AppV'      { 'appV' }
+        'Psadt'     { 'psadt' }
+        'AppAttach' { 'appAttach' }
+        default     { $PackageType.ToLower() }
+    }
+    Write-Host "→ Waiting for availPackages.$availKey to become true on app $apprAppId..." -ForegroundColor Cyan
+    $pkgDeadline = (Get-Date).AddMinutes($TimeoutMinutes)
+    $pkgReady = $false
+    $lastAvail = $null
+    while ((Get-Date) -lt $pkgDeadline) {
+        $a = Get-JuribaAppRApplication -AppId $apprAppId -ErrorAction SilentlyContinue
+        $lastAvail = $a.availPackages
+        if ($lastAvail -and $lastAvail.$availKey) {
+            Write-Host "  ✓ availPackages.$availKey = true." -ForegroundColor Green
+            $pkgReady = $true
+            break
+        }
+        Start-Sleep -Seconds $PollSeconds
+        $present = if ($lastAvail) {
+            ($lastAvail.PSObject.Properties |
+                Where-Object { $_.Value -eq $true -and $_.Name -ne 'appId' } |
+                ForEach-Object { $_.Name }) -join ','
+        } else { '<none yet>' }
+        Write-Host "  …still waiting (currently available: $present)" -ForegroundColor DarkGray
+    }
+    if (-not $pkgReady) {
+        $present = if ($lastAvail) {
+            ($lastAvail.PSObject.Properties |
+                Where-Object { $_.Value -eq $true -and $_.Name -ne 'appId' } |
+                ForEach-Object { $_.Name }) -join ','
+        } else { '<none>' }
+        throw "Imported AppR app $apprAppId never produced a $PackageType package within $TimeoutMinutes min. availPackages: $present. The MECM Application's deployment-type configuration may not produce a $PackageType-compatible package — pick one of the available types or correct the deployment type on the MECM side."
+    }
+}
+
+# ── 7. Start the smoke test ───────────────────────────────────────────────
 Write-Host "→ Starting smoke test: AppId=$apprAppId PackageType=$PackageType VMGroupId=$VMGroupId" -ForegroundColor Cyan
 $smokeResult = Start-JuribaAppRSmokeTest `
     -AppId $apprAppId `
