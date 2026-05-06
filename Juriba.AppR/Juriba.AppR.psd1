@@ -12,7 +12,7 @@
     RootModule        = 'Juriba.AppR.psm1'
 
     # Version number of this module.
-    ModuleVersion     = '0.2.0'
+    ModuleVersion     = '0.3.3'
 
     # Supported PSEditions
     CompatiblePSEditions = @('Core')
@@ -88,6 +88,15 @@
         "Invoke-JuribaAppRPublishMECM",
         "Invoke-JuribaAppRPublishGeneric",
 
+        # MECM (SCCM) Import + Provider Configuration
+        "Get-JuribaAppRMECMProvider",
+        "Get-JuribaAppRMECMImportAvailability",
+        "Get-JuribaAppRMECMImportEvent",
+        "Get-JuribaAppRMECMScanList",
+        "Start-JuribaAppRMECMImport",
+        "Set-JuribaAppRMECMProviderUniqueness",
+        "Remove-JuribaAppRMECMProvider",
+
         # Knowledge Base
         "Search-JuribaAppRKnowledgeBase",
 
@@ -134,7 +143,15 @@
             IconUri    = 'https://raw.githubusercontent.com/juribalimited/powershell-module-appr/main/resources/juriba_logo.jpeg'
 
             # ReleaseNotes of this module
-            ReleaseNotes = '0.2.0 - Add Get-JuribaAppRSession. Rename Get-JuribaAppRDefaultSettings -> Get-JuribaAppRDefaultSetting and Get-JuribaAppRTestStats -> Get-JuribaAppRTestStat (plural names kept as backward-compat aliases). Watch-* cmdlets now use Write-Progress + Write-Verbose for progress output. Raise minimum PowerShellVersion to 7.1 (required for Read-Host -MaskInput in example scripts). New interactive example scripts: Invoke-JuribaAppRSelfService.ps1 and Invoke-JuribaAppRSelfServiceWithTesting.ps1.'
+            ReleaseNotes = '0.3.3 - End-to-end MECM import + smoke-test verified on sandbox.appr.juriba.app: Get-JuribaAppRMECMScanList | Start-JuribaAppRMECMImport produces a new AppR app with the matching scan-list row, and Start-JuribaAppRSmokeTest succeeds against it once availPackages.<type> flips true. Two improvements driven by that validation: Get-JuribaAppRUser -Me now merges /api/apm/user/whoAmI (numeric id) into /api/apm/user/whoAmI/full (profile body) so callers can resolve their own user id without two requests — needed for Set-JuribaAppRApplicationOwner. Examples/Import-MECMAppAndSmokeTest.ps1 now (a) calls Set-JuribaAppRApplicationOwner after import so the AppR UI''s smoke-test "Created By" shows the API caller rather than the integration connector''s system user, and (b) waits on availPackages.<PackageType> rather than just any package version, because MECM imports can produce a source-media zip well before any deployable type — calling Start-JuribaAppRSmokeTest before the matching availPackages flag flips true returns "CantFindTheAppInformation" (HTTP 400). The script now reports which package types ARE available if the requested one never materialises.
+
+0.3.2 - Address PR review feedback. Remove-JuribaAppRMECMProvider: drop ConfirmImpact=High (which auto-prompted on -Id deletion too) for ConfirmImpact=Medium plus an explicit ShouldContinue gate on the -All branch — single-id removal now uses the regular Confirm flow, bulk removal still prompts unless -Confirm:$false. Get-JuribaAppRMECMImportAvailability: document the integer return value (0=unavailable, 1=ready) and add a guard-pattern example. Examples/Import-MECMAppAndSmokeTest.ps1: fix Watch-JuribaAppRApplicationStatus name split across two lines in the description.
+
+0.3.1 - Fix the MECM import body shape and add the missing scan-list cmdlet. Reverse-engineered the AppR SPA''s Scan Import page (importSelectedApplications in chunk-46NRXZRT.js): the import API expects { filteringObjects: [{ id: <originalApplicationId>, model: <int> }] } where id is the CM-side string and model is mirrored verbatim from the scan-list row (typically 0 for an MECM Application). The previous Start-JuribaAppRMECMImport sent the AppR-side numeric id with model=1, which the server accepts with 200 OK but silently no-ops. New: Get-JuribaAppRMECMScanList (wraps GET /api/integration/{providerId}/scan/list — returns rows with originalApplicationId + model + status). Updated: Start-JuribaAppRMECMImport accepts pipeline input from Get-JuribaAppRMECMScanList and derives the body fields from each row; the FilteringObjects / Body parameter sets remain as escape hatches. Examples/Import-MECMAppAndSmokeTest.ps1 rewritten to use the scan-list lookup instead of -FilteringSccmId; -FilteringSccmId is replaced by -ImportEverything for the bulk case.
+
+0.3.0 - Add MECM (SCCM) import + provider cmdlets covering /api/admin/sccm/*. New: Get-JuribaAppRMECMProvider (list configured integration providers — Intune + MECM — list or single by -Id), Get-JuribaAppRMECMImportAvailability (preflight), Get-JuribaAppRMECMImportEvent (event log), Start-JuribaAppRMECMImport (-FilteringObjects scopes which apps to import), Set-JuribaAppRMECMProviderUniqueness (toggle uniqueness on a provider), Remove-JuribaAppRMECMProvider (-Id or -All). Also adds Examples/Import-MECMAppAndSmokeTest.ps1 — end-to-end customer scenario: import a single CM app then run a smoke test against a chosen VM group.
+
+0.2.0 - Add Get-JuribaAppRSession. Rename Get-JuribaAppRDefaultSettings -> Get-JuribaAppRDefaultSetting and Get-JuribaAppRTestStats -> Get-JuribaAppRTestStat (plural names kept as backward-compat aliases). Watch-* cmdlets now use Write-Progress + Write-Verbose for progress output. Raise minimum PowerShellVersion to 7.1 (required for Read-Host -MaskInput in example scripts). New interactive example scripts: Invoke-JuribaAppRSelfService.ps1 and Invoke-JuribaAppRSelfServiceWithTesting.ps1.'
 
         } # End of PSData hashtable
 
