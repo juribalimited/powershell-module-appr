@@ -87,6 +87,13 @@
         "Invoke-JuribaAppRPublishMECM",
         "Invoke-JuribaAppRPublishGeneric",
 
+        # MECM / SCCM Import
+        "Get-JuribaAppRMECMProvider",
+        "Get-JuribaAppRMECMScanList",
+        "Get-JuribaAppRMECMImportAvailability",
+        "Get-JuribaAppRMECMImportEvent",
+        "Start-JuribaAppRMECMImport",
+
         # Knowledge Base
         "Search-JuribaAppRKnowledgeBase",
 
