@@ -290,7 +290,17 @@ if ($SkipImport) {
                 Select-Object -First 1
         }
         if (-not $candidate) {
-            throw "No scan-list row matched '$CMApplicationName' on provider id $($mecmProvider.id) with an importable status. Run Get-JuribaAppRMECMScanList -ProviderId $($mecmProvider.id) | Select applicationName, status to see what is discoverable."
+            # Distinguish "no name match" from "name matched but status
+            # filtered out" — the latter usually means the app is already
+            # in AppR (status 2 = imported, 4/5 = import in flight) and
+            # -SkipImport is the answer. Bare "no row matched" sent users
+            # chasing a name-lookup problem that didn't exist.
+            $nameMatches = @($scanRows | Where-Object { $_.applicationName -like "*$CMApplicationName*" })
+            if ($nameMatches.Count -gt 0) {
+                $statuses = ($nameMatches | ForEach-Object { $_.status } | Sort-Object -Unique) -join ', '
+                throw "Scan-list row(s) matched '$CMApplicationName' on provider id $($mecmProvider.id), but all have a non-importable status (observed: $statuses). Status 2 = already imported into AppR, 4 or 5 = import already in flight. If the app is already in AppR, re-run this script with -SkipImport to bypass the import step and go straight to the smoke test against the existing record. To inspect: Get-JuribaAppRMECMScanList -ProviderId $($mecmProvider.id) | Where-Object applicationName -like '*$CMApplicationName*' | Select applicationName, status"
+            }
+            throw "No scan-list row matched '$CMApplicationName' on provider id $($mecmProvider.id). Inspect what is discoverable: Get-JuribaAppRMECMScanList -ProviderId $($mecmProvider.id) | Select applicationName, status"
         }
         if ($PSCmdlet.ShouldProcess($candidate.applicationName, "Trigger MECM import")) {
             $candidate | Start-JuribaAppRMECMImport -Confirm:$false | Out-Null
