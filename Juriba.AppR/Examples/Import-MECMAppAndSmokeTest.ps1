@@ -202,6 +202,23 @@ function Resolve-AppRId {
     return $null
 }
 
+# Get the AppR application list for the pre-import snapshot and post-import
+# diff. Prefers the cheap Lite endpoint, but some AppR / AppM versions gate
+# Lite behind a permission set that callers with otherwise-broad admin
+# access don't have — in that case the server returns the SPA HTML page
+# (200 OK with text/html) rather than 401/403. Invoke-RestMethod surfaces
+# that as a string, which we detect and retry against the V2 endpoint.
+# V2 carries the same data nested under .basic; Resolve-AppRId handles
+# both shapes.
+function Get-AppRAppList {
+    $r = Get-JuribaAppRApplicationList -AllUsers -Lite
+    if ($r -is [string]) {
+        Write-Verbose "listOfAppsLite returned non-JSON (likely an SPA-HTML fallthrough for a key without Lite-endpoint permission); retrying with listOfAppsV2."
+        $r = Get-JuribaAppRApplicationList -AllUsers
+    }
+    return @($r)
+}
+
 # ── 1. Connect (re-use a live session if there is one) ────────────────────
 $existingSession = Get-JuribaAppRSession -ErrorAction SilentlyContinue
 if (-not $existingSession) {
@@ -259,10 +276,11 @@ if ($SkipImport) {
     Write-Verbose "MECM import availability: $availability"
 
     Write-Host "→ Snapshotting existing AppR app ids before import..." -ForegroundColor Cyan
-    # Resolve-AppRId normalises across schema variants — see helper above.
-    # Drop empty results so $beforeIds only contains real ids and the
-    # post-import diff stays correct.
-    $beforeIds = @(Get-JuribaAppRApplicationList -AllUsers -Lite |
+    # Get-AppRAppList prefers Lite, falls back to V2 if the key can't see
+    # Lite. Resolve-AppRId normalises across schema variants. Drop empty
+    # results so $beforeIds only contains real ids and the post-import
+    # diff stays correct.
+    $beforeIds = @(Get-AppRAppList |
         ForEach-Object { Resolve-AppRId $_ } |
         Where-Object { $_ })
     Write-Host "  $($beforeIds.Count) existing apps." -ForegroundColor DarkGray
@@ -309,7 +327,7 @@ if ($SkipImport) {
     $deadline = (Get-Date).AddMinutes($TimeoutMinutes)
     while ((Get-Date) -lt $deadline) {
         Start-Sleep -Seconds $PollSeconds
-        $now = @(Get-JuribaAppRApplicationList -AllUsers -Lite)
+        $now = @(Get-AppRAppList)
         $new = @($now | Where-Object {
             $rowId = Resolve-AppRId $_
             $rowId -and ($beforeIds -notcontains $rowId)
