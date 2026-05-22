@@ -103,7 +103,7 @@
   with Get-JuribaAppRVMGroup.
 
 .PARAMETER PackageType
-  The package type to test. Defaults to 'Msi'. Other recognised values:
+  The package type to test. Defaults to 'Msi'. Other recognized values:
   'Msix', 'IntuneWin', 'AppV', 'Psadt', 'AppAttach', 'nonStd'. Must
   match a key on the AppR application's availPackages map. AppR
   classifies anything outside the standard formats as 'nonStd', which
@@ -169,7 +169,7 @@
 #>
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
-    Justification = 'Interactive example script — user-facing coloured console output for progress and resolved ids.')]
+    Justification = 'Interactive example script — user-facing colored console output for progress and resolved ids.')]
 [CmdletBinding(SupportsShouldProcess)]
 param(
     [Parameter(Mandatory = $false)] [string]$Instance,
@@ -195,7 +195,7 @@ $ErrorActionPreference = 'Stop'
 
 # Different AppR versions / list endpoints expose the application id under
 # different property names (id / appId / applicationId / nested basic.id).
-# Normalise once so the rest of the script never has to care which one came
+# Normalize once so the rest of the script never has to care which one came
 # back. Returning $null for a row without any of these is intentional —
 # callers filter empty results out of the snapshot.
 function Resolve-AppRId {
@@ -297,7 +297,7 @@ if ($SkipImport) {
 
     Write-Host "→ Snapshotting existing AppR app ids before import..." -ForegroundColor Cyan
     # Get-AppRAppList prefers Lite, falls back to V2 if the key can't see
-    # Lite. Resolve-AppRId normalises across schema variants. Drop empty
+    # Lite. Resolve-AppRId normalizes across schema variants. Drop empty
     # results so $beforeIds only contains real ids and the post-import
     # diff stays correct.
     $beforeIds = @(Get-AppRAppList |
@@ -353,7 +353,7 @@ if ($SkipImport) {
             $rowId -and ($beforeIds -notcontains $rowId)
         })
         if ($new.Count -gt 0) {
-            # When several apps materialise (e.g. ImportEverything), pick
+            # When several apps materialize (e.g. ImportEverything), pick
             # the one whose name best matches the requested CM app. Use
             # Resolve-AppRName so the match works against both Lite and
             # V2 row shapes.
