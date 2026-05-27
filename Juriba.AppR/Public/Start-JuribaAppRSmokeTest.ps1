@@ -17,9 +17,9 @@ function Start-JuribaAppRSmokeTest {
       The package type to test. AppR recognizes the string names of the
       standard formats (Msi, Msix, IntuneWin, AppV, Psadt, AppAttach)
       via a server-side name-to-enum lookup. For values outside that set
-      — most notably 'nonStd', which AppR uses for packages that don't
-      fit the standard formats (commonly PSADT wrappers on older AppR /
-      AppM builds before PSADT-specific detection was fully exposed) —
+      (most notably 'nonStd', which AppR uses for packages that don't
+      fit the standard formats - commonly PSADT wrappers on older AppR /
+      AppM builds before PSADT-specific detection was fully exposed),
       pass either the string 'nonStd' (the cmdlet maps it to its integer
       enum value 10 before sending) or the integer directly. PowerShell
       coerces integers to strings on parameter binding, so any future
@@ -68,7 +68,7 @@ function Start-JuribaAppRSmokeTest {
     # so the request resolves to a non-existent type and the server
     # returns a 400 'CantFindTheAppInformation'. Map those to their
     # integer enum value before sending. Values not in the map fall
-    # through unchanged — callers can pass any future enum value as an
+    # through unchanged - callers can pass any future enum value as an
     # integer; PowerShell coerces it to a string on parameter binding.
     $packageTypeForUri = switch -CaseSensitive ($PackageType) {
         'nonStd' { '10' }
