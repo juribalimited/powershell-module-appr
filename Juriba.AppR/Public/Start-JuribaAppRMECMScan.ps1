@@ -1,4 +1,4 @@
-function Start-JuribaAppRMECMScan {
+﻿function Start-JuribaAppRMECMScan {
     <#
       .SYNOPSIS
       Triggers a scan on an MECM/SCCM (or other integration) provider so newly-created CM applications appear in the scan list.
