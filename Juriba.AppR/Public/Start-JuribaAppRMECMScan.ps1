@@ -1,9 +1,9 @@
-﻿function Start-JuribaAppRMECMScan {
+function Start-JuribaAppRMECMScan {
     <#
       .SYNOPSIS
       Triggers a scan on an MECM/SCCM (or other integration) provider so newly-created CM applications appear in the scan list.
       .DESCRIPTION
-      Wraps POST /api/integration/{providerId}/scan — the same call the AppR
+      Wraps POST /api/integration/{providerId}/scan, the same call the AppR
       admin UI's "Start scan" button on the Scan & Import page makes. The
       server queues the scan, returns 200 OK immediately, and runs the work
       asynchronously. Track completion with Get-JuribaAppRMECMScanList (rows
@@ -15,7 +15,7 @@
         - A CM application was created in MECM after the connector's last
           scheduled scan; Get-JuribaAppRMECMScanList won't surface it until
           the next scan runs. Trigger one now to skip the wait.
-        - End-to-end automation (create CM app → import to AppR → smoke
+        - End-to-end automation (create CM app -> import to AppR -> smoke
           test) where the autoscheduler's cadence is too slow.
 
       The request body is an empty JSON object; the scope of the scan is
