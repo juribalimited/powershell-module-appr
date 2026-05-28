@@ -1,6 +1,6 @@
 # Juriba App Readiness PowerShell Module
 
-PowerShell module and automation examples for [Juriba App Readiness](https://www.juriba.com) (AppR). Provides 50 cmdlets covering the full application lifecycle — connect, upload, package, test, publish, and import from MECM/SCCM — plus ready-to-run example scripts for common automation patterns.
+PowerShell module and automation examples for [Juriba App Readiness](https://www.juriba.com) (AppR). Provides 51 cmdlets covering the full application lifecycle — connect, upload, package, test, publish, and import from MECM/SCCM — plus ready-to-run example scripts for common automation patterns.
 
 ## Compatibility
 
@@ -139,7 +139,7 @@ The tables below summarize what's available.
 
 | Cmdlet | Description | v6 Status |
 |--------|-------------|-----------|
-| `Search-JuribaAppRKnowledgeBase` | Search the Juriba KB by name, or get versions by ID (auto-fallback to UDA API) | OK |
+| `Search-JuribaAppRKnowledgeBase` | Search the Juriba KB by name (v6 OData contract with v5 fallback), or get versions by ID; `-UseUDA` as explicit opt-in | OK |
 | `Get-JuribaAppRCommandSuggestion` | Get install command suggestions (KB, Programmatic, AI) | OK |
 
 ### Packages
@@ -187,6 +187,7 @@ These cmdlets pull a customer's MECM application catalogue **into** App Readines
 | `Start-JuribaAppRMECMImport` | Trigger the import — accepts pipeline input from `Get-JuribaAppRMECMScanList` and derives the body fields automatically |
 | `Get-JuribaAppRMECMImportEvent` | Get the import event log |
 | `Set-JuribaAppRMECMProviderUniqueness` | Toggle uniqueness on a single provider |
+| `Start-JuribaAppRMECMScan` | Trigger an integration scan so newly-created CM applications appear in the scan list without waiting for the autoscheduler |
 | `Remove-JuribaAppRMECMProvider` | Delete a single (`-Id`) or every (`-All`) provider configuration |
 
 ```powershell
