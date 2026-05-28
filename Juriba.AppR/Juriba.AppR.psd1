@@ -12,11 +12,7 @@
     RootModule        = 'Juriba.AppR.psm1'
 
     # Version number of this module.
-<<<<<<< HEAD
-    ModuleVersion     = '0.3.5'
-=======
     ModuleVersion     = '0.3.6'
->>>>>>> cfea49d (Search-JuribaAppRKnowledgeBase: speak v6 OData contract)
 
     # Supported PSEditions
     CompatiblePSEditions = @('Core')
