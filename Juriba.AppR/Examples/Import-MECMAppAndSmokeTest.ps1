@@ -103,9 +103,15 @@
   with Get-JuribaAppRVMGroup.
 
 .PARAMETER PackageType
-  The package type to test. Defaults to 'Msi'. Other values:
-  'Msix', 'IntuneWin', 'AppV', 'Psadt', 'AppAttach'. Must match what
-  the import produced (visible on the AppR application detail).
+  The package type to test. Defaults to 'Msi'. Other recognized values:
+  'Msix', 'IntuneWin', 'AppV', 'Psadt', 'AppAttach', 'nonStd'. Must
+  match a key on the AppR application's availPackages map. AppR
+  classifies anything outside the standard formats as 'nonStd', which
+  is most commonly seen on PSADT wrappers under AppR / AppM builds
+  where PSADT-specific detection wasn't yet fully exposed; the script
+  prints which availPackages keys are currently true on each poll, so
+  if a run times out the log shows the actual classification to pass
+  on a retry.
 
 .PARAMETER AppRApplicationName
   Optional. Used only when -SkipImport is set: the name of the existing
@@ -163,7 +169,7 @@
 #>
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
-    Justification = 'Interactive example script — user-facing coloured console output for progress and resolved ids.')]
+    Justification = 'Interactive example script — user-facing colored console output for progress and resolved ids.')]
 [CmdletBinding(SupportsShouldProcess)]
 param(
     [Parameter(Mandatory = $false)] [string]$Instance,
@@ -186,6 +192,50 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Different AppR versions / list endpoints expose the application id under
+# different property names (id / appId / applicationId / nested basic.id).
+# Normalize once so the rest of the script never has to care which one came
+# back. Returning $null for a row without any of these is intentional —
+# callers filter empty results out of the snapshot.
+function Resolve-AppRId {
+    param([Parameter(Mandatory = $true)] $InputObject)
+    if ($null -eq $InputObject) { return $null }
+    if ($InputObject.PSObject.Properties['id']            -and $InputObject.id)            { return $InputObject.id }
+    if ($InputObject.PSObject.Properties['appId']         -and $InputObject.appId)         { return $InputObject.appId }
+    if ($InputObject.PSObject.Properties['applicationId'] -and $InputObject.applicationId) { return $InputObject.applicationId }
+    if ($InputObject.basic -and $InputObject.basic.id) { return $InputObject.basic.id }
+    return $null
+}
+
+# Mirror of Resolve-AppRId for the application name: Lite returns .name at
+# the root, V2 nests it under .basic.name. Without this helper, display and
+# name-match filters that read $row.name silently see $null when the V2
+# fallback kicks in.
+function Resolve-AppRName {
+    param([Parameter(Mandatory = $true)] $InputObject)
+    if ($null -eq $InputObject) { return $null }
+    if ($InputObject.PSObject.Properties['name'] -and $InputObject.name) { return $InputObject.name }
+    if ($InputObject.basic -and $InputObject.basic.name) { return $InputObject.basic.name }
+    return $null
+}
+
+# Get the AppR application list for the pre-import snapshot and post-import
+# diff. Prefers the cheap Lite endpoint, but some AppR / AppM versions gate
+# Lite behind a permission set that callers with otherwise-broad admin
+# access don't have — in that case the server returns the SPA HTML page
+# (200 OK with text/html) rather than 401/403. Invoke-RestMethod surfaces
+# that as a string, which we detect and retry against the V2 endpoint.
+# V2 carries the same data nested under .basic; Resolve-AppRId handles
+# both shapes.
+function Get-AppRAppList {
+    $r = Get-JuribaAppRApplicationList -AllUsers -Lite
+    if ($r -is [string]) {
+        Write-Verbose "listOfAppsLite returned non-JSON (likely an SPA-HTML fallthrough for a key without Lite-endpoint permission); retrying with listOfAppsV2."
+        $r = Get-JuribaAppRApplicationList -AllUsers
+    }
+    return @($r)
+}
 
 # ── 1. Connect (re-use a live session if there is one) ────────────────────
 $existingSession = Get-JuribaAppRSession -ErrorAction SilentlyContinue
@@ -230,21 +280,29 @@ $apprApp = $null
 if ($SkipImport) {
     Write-Host "→ -SkipImport: looking up an existing AppR application by name..." -ForegroundColor Cyan
     $lookupNames = @($AppRApplicationName, $CMApplicationName) | Where-Object { $_ }
-    $apps = @(Get-JuribaAppRApplicationList -AllUsers -Lite)
+    # Get-AppRAppList + Resolve-AppRName so the lookup works against both
+    # Lite (.name at root) and V2 (.basic.name nested) shapes.
+    $apps = @(Get-AppRAppList)
     foreach ($q in $lookupNames) {
-        $apprApp = $apps | Where-Object { $_.name -ieq $q } | Select-Object -First 1
-        if (-not $apprApp) { $apprApp = $apps | Where-Object { $_.name -like "*$q*" } | Select-Object -First 1 }
+        $apprApp = $apps | Where-Object { (Resolve-AppRName $_) -ieq $q } | Select-Object -First 1
+        if (-not $apprApp) { $apprApp = $apps | Where-Object { (Resolve-AppRName $_) -like "*$q*" } | Select-Object -First 1 }
         if ($apprApp) { break }
     }
     if (-not $apprApp) {
-        throw "-SkipImport set but no AppR application matched '$CMApplicationName' (or -AppRApplicationName if supplied). List with: Get-JuribaAppRApplicationList -AllUsers -Lite"
+        throw "-SkipImport set but no AppR application matched '$CMApplicationName' (or -AppRApplicationName if supplied). List with: Get-JuribaAppRApplicationList -AllUsers -Lite (or -AllUsers without -Lite if your API key lacks the Lite endpoint)."
     }
 } else {
     $availability = Get-JuribaAppRMECMImportAvailability
     Write-Verbose "MECM import availability: $availability"
 
     Write-Host "→ Snapshotting existing AppR app ids before import..." -ForegroundColor Cyan
-    $beforeIds = @(Get-JuribaAppRApplicationList -AllUsers -Lite | Select-Object -ExpandProperty id)
+    # Get-AppRAppList prefers Lite, falls back to V2 if the key can't see
+    # Lite. Resolve-AppRId normalizes across schema variants. Drop empty
+    # results so $beforeIds only contains real ids and the post-import
+    # diff stays correct.
+    $beforeIds = @(Get-AppRAppList |
+        ForEach-Object { Resolve-AppRId $_ } |
+        Where-Object { $_ })
     Write-Host "  $($beforeIds.Count) existing apps." -ForegroundColor DarkGray
 
     if ($ImportEverything) {
@@ -266,7 +324,17 @@ if ($SkipImport) {
                 Select-Object -First 1
         }
         if (-not $candidate) {
-            throw "No scan-list row matched '$CMApplicationName' on provider id $($mecmProvider.id) with an importable status. Run Get-JuribaAppRMECMScanList -ProviderId $($mecmProvider.id) | Select applicationName, status to see what is discoverable."
+            # Distinguish "no name match" from "name matched but status
+            # filtered out" — the latter usually means the app is already
+            # in AppR (status 2 = imported, 4/5 = import in flight) and
+            # -SkipImport is the answer. Bare "no row matched" sent users
+            # chasing a name-lookup problem that didn't exist.
+            $nameMatches = @($scanRows | Where-Object { $_.applicationName -like "*$CMApplicationName*" })
+            if ($nameMatches.Count -gt 0) {
+                $statuses = ($nameMatches | ForEach-Object { $_.status } | Sort-Object -Unique) -join ', '
+                throw "Scan-list row(s) matched '$CMApplicationName' on provider id $($mecmProvider.id), but all have a non-importable status (observed: $statuses). Status 2 = already imported into AppR, 4 or 5 = import already in flight. If the app is already in AppR, re-run this script with -SkipImport to bypass the import step and go straight to the smoke test against the existing record. To inspect: Get-JuribaAppRMECMScanList -ProviderId $($mecmProvider.id) | Where-Object applicationName -like '*$CMApplicationName*' | Select applicationName, status"
+            }
+            throw "No scan-list row matched '$CMApplicationName' on provider id $($mecmProvider.id). Inspect what is discoverable: Get-JuribaAppRMECMScanList -ProviderId $($mecmProvider.id) | Select applicationName, status"
         }
         if ($PSCmdlet.ShouldProcess($candidate.applicationName, "Trigger MECM import")) {
             $candidate | Start-JuribaAppRMECMImport -Confirm:$false | Out-Null
@@ -279,18 +347,28 @@ if ($SkipImport) {
     $deadline = (Get-Date).AddMinutes($TimeoutMinutes)
     while ((Get-Date) -lt $deadline) {
         Start-Sleep -Seconds $PollSeconds
-        $now = @(Get-JuribaAppRApplicationList -AllUsers -Lite)
-        $new = @($now | Where-Object { $beforeIds -notcontains $_.id })
+        $now = @(Get-AppRAppList)
+        $new = @($now | Where-Object {
+            $rowId = Resolve-AppRId $_
+            $rowId -and ($beforeIds -notcontains $rowId)
+        })
         if ($new.Count -gt 0) {
-            # When several apps materialise (e.g. ImportEverything), pick
-            # the one whose name best matches the requested CM app.
+            # When several apps materialize (e.g. ImportEverything), pick
+            # the one whose name best matches the requested CM app. Use
+            # Resolve-AppRName so the match works against both Lite and
+            # V2 row shapes.
             $apprApp = $new |
-                Where-Object { $_.name -like "*$CMApplicationName*" } |
+                Where-Object { (Resolve-AppRName $_) -like "*$CMApplicationName*" } |
                 Select-Object -First 1
             if (-not $apprApp) { $apprApp = $new | Select-Object -First 1 }
-            Write-Host "  ✓ Found new AppR app: id=$($apprApp.id), name=$($apprApp.name)" -ForegroundColor Green
+            $pickedId   = Resolve-AppRId   $apprApp
+            $pickedName = Resolve-AppRName $apprApp
+            Write-Host "  ✓ Found new AppR app: id=$pickedId, name=$pickedName" -ForegroundColor Green
             if ($new.Count -gt 1) {
-                Write-Host "    ($($new.Count) new apps in total — picked the closest match. Others: $(($new | Where-Object id -ne $apprApp.id | ForEach-Object { "$($_.id):$($_.name)" }) -join ', '))" -ForegroundColor DarkGray
+                $others = $new |
+                    Where-Object { (Resolve-AppRId $_) -ne $pickedId } |
+                    ForEach-Object { "$(Resolve-AppRId $_):$(Resolve-AppRName $_)" }
+                Write-Host "    ($($new.Count) new apps in total — picked the closest match. Others: $(($others) -join ', '))" -ForegroundColor DarkGray
             }
             break
         }
@@ -302,12 +380,7 @@ if ($SkipImport) {
     }
 }
 
-# -Lite returns flat records (id, name, manufacturer, version at root);
-# defensive extraction so a future shape change doesn't silently break.
-$apprAppId = if ($apprApp.id)        { $apprApp.id }
-             elseif ($apprApp.appId) { $apprApp.appId }
-             elseif ($apprApp.basic -and $apprApp.basic.id) { $apprApp.basic.id }
-             else { $null }
+$apprAppId = Resolve-AppRId $apprApp
 if (-not $apprAppId) {
     $shape = ($apprApp | ConvertTo-Json -Depth 4 -Compress)
     throw "Found a matching AppR application but couldn't pull its id from: $($shape.Substring(0, [Math]::Min(400, $shape.Length)))"
@@ -398,7 +471,7 @@ Write-Verbose ("Smoke test response: " + ($smokeResult | ConvertTo-Json -Depth 5
     CMApplicationName    = $CMApplicationName
     MECMProviderId       = $mecmProvider.id
     AppRApplicationId    = $apprAppId
-    AppRApplicationName  = if ($apprApp.name) { $apprApp.name } elseif ($apprApp.basic) { $apprApp.basic.name } else { $null }
+    AppRApplicationName  = Resolve-AppRName $apprApp
     PackageType          = $PackageType
     VMGroupId            = $VMGroupId
     SmokeTestResult      = $smokeResult
