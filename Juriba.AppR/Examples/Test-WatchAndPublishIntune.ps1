@@ -19,10 +19,22 @@
        call passes -Confirm:$false so the watcher does not block on a
        confirmation prompt in unattended runs.
 
-  The polling body is wrapped in try/catch so a transient API error does not
-  kill the watcher; the next poll re-tries. If this script established the
-  AppR session (rather than re-using an existing one), it disconnects on exit
-  via a try/finally so Ctrl+C still cleans up.
+  Robustness notes:
+
+  - The application list is read from the cheap Lite endpoint when possible,
+    falling back to the V2 endpoint when Lite misbehaves (permission
+    fallthrough to SPA HTML, HTTP errors on builds where the Lite contract
+    changed, or rows with no recognizable id). Field access goes through a
+    resolver because the two endpoints nest id / name / status / version
+    differently and the shapes also vary across AppR versions.
+  - The polling body is wrapped in try/catch so a transient API error does
+    not kill the watcher; the next poll re-tries.
+  - A candidate whose publish attempt errors is retried on later polls, but
+    parked after 3 failed attempts so a permanently broken app does not spam
+    the log forever.
+  - If this script established the AppR session (rather than re-using an
+    existing one), it disconnects on exit via try/finally so Ctrl+C still
+    cleans up.
 
   Requires an Intune integration connector configured on the AppR instance
   with isDeployEnabled.
@@ -126,45 +138,69 @@ param (
 
 $ErrorActionPreference = 'Stop'
 
-# Different AppR versions / list endpoints expose the application id under
-# different property names (id / appId / applicationId / nested basic.id).
-# Normalize once so the rest of the script never has to care which one came
-# back. Returning $null for a row without any of these is intentional -
-# callers filter empty results out.
-function Resolve-AppRId {
-    param([Parameter(Mandatory = $true)] $InputObject)
-    if ($null -eq $InputObject) { return $null }
-    if ($InputObject.PSObject.Properties['id']            -and $InputObject.id)            { return $InputObject.id }
-    if ($InputObject.PSObject.Properties['appId']         -and $InputObject.appId)         { return $InputObject.appId }
-    if ($InputObject.PSObject.Properties['applicationId'] -and $InputObject.applicationId) { return $InputObject.applicationId }
-    if ($InputObject.basic -and $InputObject.basic.id) { return $InputObject.basic.id }
-    return $null
-}
-
-# Same V2-shape problem applies to the application name: -Lite exposes name
-# at the root, V2 nests under .basic.name.
-function Resolve-AppRName {
-    param([Parameter(Mandatory = $true)] $InputObject)
-    if ($null -eq $InputObject) { return $null }
-    if ($InputObject.PSObject.Properties['name'] -and $InputObject.name) { return $InputObject.name }
-    if ($InputObject.basic -and $InputObject.basic.name) { return $InputObject.basic.name }
-    return $null
-}
-
-# Get the AppR application list. Prefers the cheap Lite endpoint, but some
-# AppR / AppM versions gate Lite behind a permission set that callers with
-# otherwise-broad admin access do not have - in that case the server returns
-# the SPA HTML page (200 OK with text/html) rather than 401/403.
-# Invoke-RestMethod surfaces that as a string, which we detect and retry
-# against the V2 endpoint. V2 nests fields under .basic; Resolve-AppRId and
-# Resolve-AppRName handle both shapes.
-function Get-AppRAppList {
-    $r = Get-JuribaAppRApplicationList -AllUsers -Lite
-    if ($r -is [string]) {
-        Write-Verbose "listOfAppsLite returned non-JSON (likely an SPA-HTML fallthrough for a key without Lite-endpoint permission); retrying with listOfAppsV2."
-        $r = Get-JuribaAppRApplicationList -AllUsers
+# Different AppR versions / list endpoints expose the same logical field
+# under different property names and nesting levels. Observed shapes:
+#   - Lite rows: id / name / status / version / manufacturer at the root.
+#   - V2 rows:   id, appId, name, applicationVersion, manufacturer nested
+#     under .basic; status (camelCase, e.g. "ReadyForUat") and displayName
+#     nested under .ext.
+# Resolve-AppRField checks each requested property name at the root, then
+# under .basic, then under .ext, and returns the first non-empty value.
+# This generalizes the Resolve-AppRId helper from Import-MECMAppAndSmokeTest
+# so one function covers id, name, status, version, and manufacturer.
+function Resolve-AppRField {
+    param(
+        [Parameter(Mandatory = $true)]  $Row,
+        [Parameter(Mandatory = $true)]  [string[]]$Name
+    )
+    if ($null -eq $Row) { return $null }
+    $holders = @($Row)
+    foreach ($sub in 'basic', 'ext') {
+        $p = $Row.PSObject.Properties[$sub]
+        if ($p -and $p.Value) { $holders += $p.Value }
     }
-    return @($r)
+    foreach ($n in $Name) {
+        foreach ($holder in $holders) {
+            $p = $holder.PSObject.Properties[$n]
+            if ($p -and $null -ne $p.Value -and '' -ne $p.Value) { return $p.Value }
+        }
+    }
+    return $null
+}
+
+# Get the AppR application list. Prefers the cheap Lite endpoint, but the
+# Lite route has three observed failure modes across AppR / AppM versions:
+#   1. 200 OK with the SPA HTML page (string) instead of JSON, for API keys
+#      with partial admin scope (V2 allowed, Lite denied).
+#   2. An outright HTTP error (e.g. 400 serializer error on builds where the
+#      Lite route's contract changed).
+#   3. 200 OK with JSON rows whose id property the script cannot resolve.
+# Any of the three falls back to the V2 endpoint, which has been reliable
+# across every version tested. Once the fallback trips, subsequent polls go
+# straight to V2 instead of re-failing on Lite every interval.
+$script:preferV2 = $false
+function Get-AppRAppList {
+    if (-not $script:preferV2) {
+        try {
+            $r = Get-JuribaAppRApplicationList -AllUsers -Lite
+            if ($r -is [string]) {
+                Write-Verbose "listOfAppsLite returned non-JSON (likely an SPA-HTML permission fallthrough); switching to listOfAppsV2 for this run."
+                $script:preferV2 = $true
+            }
+            elseif (@($r).Count -gt 0 -and -not (Resolve-AppRField @($r)[0] -Name 'id', 'appId', 'applicationId')) {
+                Write-Verbose "listOfAppsLite rows carry no recognizable application id; switching to listOfAppsV2 for this run."
+                $script:preferV2 = $true
+            }
+            else {
+                return @($r)
+            }
+        }
+        catch {
+            Write-Verbose "listOfAppsLite failed ($($_.Exception.Message)); switching to listOfAppsV2 for this run."
+            $script:preferV2 = $true
+        }
+    }
+    return @(Get-JuribaAppRApplicationList -AllUsers)
 }
 
 # --- 1. Ensure the Juriba.AppR module is loaded --------------------------
@@ -187,7 +223,12 @@ if (-not (Get-Module -Name Juriba.AppR)) {
 #   3. -SecureAPIKey                        - SecureString already in hand.
 #   4. -APIKey (plain text)                 - explicit opt-in; warning printed.
 #   5. Interactive Read-Host -AsSecureString prompt.
-$existingSession = Get-JuribaAppRSession -ErrorAction SilentlyContinue
+# Get-JuribaAppRSession only exists from module v0.2.0; guard with
+# Get-Command so this script does not hard-fail if an older module version
+# happens to be the one loaded.
+$existingSession = if (Get-Command Get-JuribaAppRSession -ErrorAction SilentlyContinue) {
+    Get-JuribaAppRSession -ErrorAction SilentlyContinue
+} else { $null }
 $sessionEstablishedHere = $false
 
 if (-not $existingSession) {
@@ -222,9 +263,16 @@ else {
 }
 
 # --- 3. Watcher setup -----------------------------------------------------
-# Track which apps we have already attempted to publish in this run so
-# subsequent polls do not re-trigger the publish (or re-report in dry-run).
+# Track which apps we have already published in this run so subsequent polls
+# do not re-trigger the publish (or re-report in dry-run). Keys are stringified
+# app ids so int-vs-string differences between endpoints cannot split the set.
 $publishedAppIds = @{}
+
+# Apps whose publish attempt errored get retried on later polls, but only up
+# to this many times - a permanently broken app (bad connector config, wrong
+# package state) should not generate an error line every poll forever.
+$MAX_PUBLISH_ATTEMPTS = 3
+$publishFailures = @{}
 
 # RAG status values from evergreenInformation.rAGStatus:
 #   1 = green (clean pass), 2 = amber (warnings), 3 = red (fail).
@@ -274,11 +322,14 @@ try {
             $allApps = Get-AppRAppList
 
             # Filter to target statuses, skipping anything we have already
-            # tried to publish in this run.
+            # published in this run. Status and id are resolved through
+            # Resolve-AppRField because Lite carries them at the row root
+            # while V2 nests status under .ext and id under .basic.
             $candidates = @($allApps | Where-Object {
-                $appId = Resolve-AppRId $_
-                $_.status -and ($TargetStatuses -contains $_.status) -and
-                $appId -and (-not $publishedAppIds.ContainsKey($appId))
+                $appId  = Resolve-AppRField $_ -Name 'id', 'appId', 'applicationId'
+                $status = Resolve-AppRField $_ -Name 'status'
+                $status -and ($TargetStatuses -contains $status) -and
+                $appId -and (-not $publishedAppIds.ContainsKey([string]$appId))
             })
 
             if ($candidates.Count -eq 0) {
@@ -288,9 +339,12 @@ try {
                 Write-Host "  Checking $($candidates.Count) candidate app(s)..."
 
                 foreach ($app in $candidates) {
-                    $appId   = Resolve-AppRId   $app
-                    $appName = Resolve-AppRName $app
-                    $appLabel = "$appName v$($app.version) ($($app.manufacturer)) [id=$appId]"
+                    $appId    = Resolve-AppRField $app -Name 'id', 'appId', 'applicationId'
+                    $appKey   = [string]$appId
+                    $appName  = Resolve-AppRField $app -Name 'name', 'displayName'
+                    $appVer   = Resolve-AppRField $app -Name 'version', 'applicationVersion'
+                    $appMfr   = Resolve-AppRField $app -Name 'manufacturer'
+                    $appLabel = "$appName v$appVer ($appMfr) [id=$appId]"
 
                     # Each candidate gets its own try/catch so one bad app
                     # does not skip the rest. Add to publishedAppIds in the
@@ -347,7 +401,7 @@ try {
 
                         if ($DryRun) {
                             Write-Host "    [DRY RUN] Would publish to Intune" -ForegroundColor Yellow
-                            $publishedAppIds[$appId] = $true
+                            $publishedAppIds[$appKey] = $true
                             continue
                         }
 
@@ -366,12 +420,22 @@ try {
                         if ($result) {
                             Write-Host "    Response: $($result | ConvertTo-Json -Compress -Depth 5)"
                         }
-                        $publishedAppIds[$appId] = $true
+                        $publishedAppIds[$appKey] = $true
                     }
                     catch {
-                        Write-Host "    $appLabel - error: $($_.Exception.Message)" -ForegroundColor Red
-                        # Intentionally do NOT add to publishedAppIds so the
-                        # next poll retries this app.
+                        # Failed candidates are retried on later polls, up to
+                        # MAX_PUBLISH_ATTEMPTS - after that the app is parked
+                        # so a permanently broken one cannot spam the log
+                        # forever. Restart the script to retry parked apps.
+                        $publishFailures[$appKey] = 1 + ($publishFailures[$appKey] ?? 0)
+                        if ($publishFailures[$appKey] -ge $MAX_PUBLISH_ATTEMPTS) {
+                            $publishedAppIds[$appKey] = $true
+                            Write-Host "    $appLabel - error: $($_.Exception.Message)" -ForegroundColor Red
+                            Write-Host "    Giving up on this app after $MAX_PUBLISH_ATTEMPTS failed attempts. Restart the watcher to retry it." -ForegroundColor Red
+                        }
+                        else {
+                            Write-Host "    $appLabel - error (attempt $($publishFailures[$appKey]) of $MAX_PUBLISH_ATTEMPTS, will retry next poll): $($_.Exception.Message)" -ForegroundColor Red
+                        }
                     }
                 }
 
@@ -386,6 +450,10 @@ try {
             Write-Host "  Poll #$pollCount error (continuing): $($_.Exception.Message)" -ForegroundColor Red
         }
 
+        # Skip the final sleep when the next poll would land past the
+        # timeout anyway - otherwise a short -TimeoutMinutes with a long
+        # -IntervalSeconds keeps the script alive well past its deadline.
+        if ((Get-Date).AddSeconds($IntervalSeconds) -ge $timeoutTime) { break }
         Start-Sleep -Seconds $IntervalSeconds
     }
 
