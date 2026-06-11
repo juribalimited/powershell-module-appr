@@ -12,7 +12,7 @@
     RootModule        = 'Juriba.AppR.psm1'
 
     # Version number of this module.
-    ModuleVersion     = '0.3.6'
+    ModuleVersion     = '0.3.7'
 
     # Supported PSEditions
     CompatiblePSEditions = @('Core')
@@ -144,7 +144,9 @@
             IconUri    = 'https://raw.githubusercontent.com/juribalimited/powershell-module-appr/main/resources/juriba_logo.jpeg'
 
             # ReleaseNotes of this module
-            ReleaseNotes = '0.3.6 - Search-JuribaAppRKnowledgeBase now speaks the v6 OData contract on /api/kb/application (?$filter=...&$top=...) and unwraps the {paginationMetadata,data:[...]} envelope, with automatic fallback to the legacy ?search=<term> shape so v5 instances keep working. Auto-fallback to UDA removed; -UseUDA stays as an explicit-only escape hatch. Per-app /version/sources path unchanged.
+            ReleaseNotes = '0.3.7 - Examples/Test-WatchAndPublishIntune.ps1 hardened for customer-facing demos. Picks up the Resolve-AppRId and Resolve-AppRName helpers plus the Lite-to-V2 application-list fallback from Import-MECMAppAndSmokeTest.ps1, so the watcher works on AppR / AppM versions where the lite endpoint returns a different id shape or falls through to SPA HTML for partial-admin API keys. Replaces the mandatory plain-text -APIKey parameter with the secure-by-default pattern used elsewhere in the module: re-uses an existing Connect-JuribaAppR session, then prefers -SecretName (SecretManagement), -SecureAPIKey, an interactive Read-Host -AsSecureString prompt, and finally -APIKey (with a deprecation warning). Adds -Confirm:$false to Invoke-JuribaAppRPublishIntune so the watcher does not block on confirmation prompts in unattended runs. Wraps the polling body in try/catch so a transient API error does not terminate the watcher, and wraps the whole loop in try/finally so a Ctrl+C cleanly disconnects sessions the script established. Module import is now robust to both PSGallery-installed and dev-clone layouts. -Instance accepts -InstanceUrl as an alias for backward compatibility with earlier invocations of the script.
+
+0.3.6 - Search-JuribaAppRKnowledgeBase now speaks the v6 OData contract on /api/kb/application (?$filter=...&$top=...) and unwraps the {paginationMetadata,data:[...]} envelope, with automatic fallback to the legacy ?search=<term> shape so v5 instances keep working. Auto-fallback to UDA removed; -UseUDA stays as an explicit-only escape hatch. Per-app /version/sources path unchanged.
 
 0.3.5 - Add Start-JuribaAppRMECMScan, mirroring the AppR admin UI''s "Start scan" button on the Scan & Import page. POSTs to /api/integration/{providerId}/scan with an empty body; returns immediately while the scan runs asynchronously on the server. Closes the gap for callers automating "create CM app -> import to AppR -> smoke test" end-to-end: when the autoscheduler''s cadence is too slow, kick a scan from PowerShell instead of waiting. Accepts pipeline input by property name so Get-JuribaAppRMECMProvider | Where ... | Start-JuribaAppRMECMScan works. Track scan progress with Get-JuribaAppRMECMScanList (new rows appear with recent createdAt) or the AppR UI''s progress banner.
 
