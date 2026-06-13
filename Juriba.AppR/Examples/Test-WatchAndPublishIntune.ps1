@@ -288,11 +288,13 @@ $modeLabel = if ($DryRun) { 'DRY RUN' } else { 'LIVE' }
 $INTUNE_WIN_PACKAGE_TYPE_ID  = 4
 
 # Publish-body packageType value. Invoke-JuribaAppRPublishIntune's docstring
-# example uses the string name ("IntuneWin"); some older AppR builds accept
-# only the integer enum value. Pass as string by default to match the
-# documented contract; if a customer hits a 400 here on an older build, swap
-# to $INTUNE_WIN_PACKAGE_TYPE_ID.
-$INTUNE_WIN_PUBLISH_PACKAGE_TYPE = 'IntuneWin'
+# example uses the string name ("IntuneWin"), but that form has not been
+# verified against a live Intune connector, so we keep the integer enum value
+# this script previously shipped rather than introduce an unverified contract
+# change on a customer-facing demo script. Once the live publish is verified
+# against a real connector (see AA verification ticket), switch to whichever
+# form the endpoint actually accepts.
+$INTUNE_WIN_PUBLISH_PACKAGE_TYPE = $INTUNE_WIN_PACKAGE_TYPE_ID
 
 Write-Host "`n=== Watching for IntuneWin apps ready to publish ===" -ForegroundColor Magenta
 Write-Host "  Mode:             $modeLabel"
