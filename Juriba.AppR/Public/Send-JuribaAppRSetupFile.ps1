@@ -281,6 +281,15 @@
                         $unverifiable = $true
                     }
                 }
+                elseif ($statusCode -eq 401 -or $statusCode -eq 403) {
+                    # The key could upload but can't read combine state
+                    # (the state endpoint needs Administrators/Packager/
+                    # SiteAdmin/AppOwner). Retrying won't change that, so
+                    # degrade immediately rather than failing a good
+                    # upload at the timeout.
+                    Write-Warning ("Could not verify the server-side chunk combine for '{0}' - this API key isn't authorised to read combine state (HTTP {1}). Proceeding without confirmation; consider waiting before creating the application." -f $fileName, $statusCode)
+                    $unverifiable = $true
+                }
                 else {
                     Write-Verbose "Combine state poll failed (will retry): $($_.Exception.Message)"
                 }
