@@ -8,6 +8,16 @@
       and then combined server-side. Returns an upload identifier (UUID) that can
       be passed to New-JuribaAppRApplication to create the application.
 
+      The server combines the chunks ASYNCHRONOUSLY, so after requesting the
+      combine this cmdlet polls GET api/v2/uploadChunk/{uuid}/state until the
+      server confirms the file is fully assembled (or the combine fails).
+      Without this wait, creating an application immediately after upload can
+      start packaging before the source file exists in the store - the job
+      then sits at "Downloading" with no logs and no VM allocated. On servers
+      older than 5.1 (no state endpoint) or multi-node instances where the
+      poll lands on a different node, the cmdlet warns and falls back to the
+      previous fire-and-forget behaviour rather than failing the upload.
+
       Large files are handled automatically by splitting into configurable chunk
       sizes (default 2MB). Progress is reported via Write-Progress.
       .PARAMETER Instance
@@ -22,6 +32,14 @@
       .PARAMETER Protected
       When specified, uploads the file to the protected upload endpoint.
       Use this for files that require additional security handling.
+      .PARAMETER CombineTimeoutSec
+      Maximum seconds to wait for the server-side chunk combine to complete.
+      Default is 300. Raise this for very large files or slow storage.
+      .PARAMETER SkipCombineWait
+      Skip waiting for the server-side combine and return as soon as the
+      combine has been requested (the pre-0.3.8 behaviour). Only use this
+      when the caller performs its own readiness check before creating the
+      application.
       .EXAMPLE
       $upload = Send-JuribaAppRSetupFile -FilePath "C:\Installers\Firefox-Setup-115.0.exe"
       $upload.Uuid
@@ -52,7 +70,14 @@
         [int]$ChunkSizeMB = 2,
 
         [Parameter(Mandatory = $false)]
-        [switch]$Protected
+        [switch]$Protected,
+
+        [Parameter(Mandatory = $false)]
+        [ValidateRange(10, 3600)]
+        [int]$CombineTimeoutSec = 300,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$SkipCombineWait
     )
 
     $conn = Get-JuribaAppRConnection -Instance $Instance -APIKey $APIKey
@@ -209,6 +234,67 @@
             $errDetail = $_.ErrorDetails.Message
         }
         throw "Combine failed: $errDetail"
+    }
+
+    # The combine endpoint is ASYNC: the PUT above only queues a background
+    # job, and the server returns 200 before the file exists in the store.
+    # Creating an application (with run-immediately) at that point races the
+    # combine - if packaging wins, the job hangs at "Downloading" with no
+    # logs and no VM, because the source it wants to fetch isn't there yet.
+    # So poll the combine state until the server confirms completion.
+    #
+    # 404 from the state endpoint means no state entry is visible HERE:
+    # the server predates the endpoint (< 5.1), the poll landed on a
+    # different node behind a load balancer (state is per-node), or the
+    # entry expired (~10 min lifetime). After several consecutive 404s we
+    # warn and fall back to the previous fire-and-forget behaviour rather
+    # than fail an upload that may be completing fine.
+    if (-not $SkipCombineWait) {
+        Write-Verbose "Waiting for server-side chunk combine (timeout: ${CombineTimeoutSec}s)..."
+        $stateUri  = "{0}/api/v2/uploadChunk/{1}/state" -f $conn.Instance, $uuid
+        $deadline  = (Get-Date).AddSeconds($CombineTimeoutSec)
+        $confirmed = $false
+        $unverifiable = $false
+        $notFoundStreak = 0
+
+        while (-not $confirmed -and -not $unverifiable) {
+            if ((Get-Date) -ge $deadline) {
+                throw "Timed out after $CombineTimeoutSec seconds waiting for the server to combine '$fileName' (upload id $uuid). The combine may still finish in the background - check the instance before re-uploading, or raise -CombineTimeoutSec."
+            }
+            Start-Sleep -Seconds 2
+
+            $state = $null
+            try {
+                $state = Invoke-RestMethod -Uri $stateUri -Method GET -Headers $headers
+                $notFoundStreak = 0
+            }
+            catch {
+                $statusCode = 0
+                if ($_.Exception.Response) {
+                    try { $statusCode = [int]$_.Exception.Response.StatusCode }
+                    catch { $statusCode = 0 }
+                }
+                if ($statusCode -eq 404) {
+                    $notFoundStreak++
+                    if ($notFoundStreak -ge 5) {
+                        Write-Warning ("Could not verify the server-side chunk combine for '{0}' - the state endpoint returned 404 repeatedly. This is expected on servers older than 5.1 or multi-node instances without session affinity. Proceeding without confirmation; consider waiting before creating the application." -f $fileName)
+                        $unverifiable = $true
+                    }
+                }
+                else {
+                    Write-Verbose "Combine state poll failed (will retry): $($_.Exception.Message)"
+                }
+            }
+
+            if ($state -and $state.isCompleted) {
+                if (-not $state.status) {
+                    $combineError = if ($state.error) { $state.error } else { "error code $($state.errorCode)" }
+                    throw "Server-side chunk combine failed for '$fileName': $combineError"
+                }
+                $confirmed = $true
+                Write-Verbose "Chunk combine completed on server."
+            }
+        }
     }
 
     Write-Verbose "Upload complete. UUID: $uuid"
