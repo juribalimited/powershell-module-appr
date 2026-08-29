@@ -240,6 +240,16 @@ Application name, manufacturer, and version are resolved in order:
 
 This module is under active development. For feature requests or bug reports, please open an issue on GitHub.
 
+### Development setup
+
+After cloning, opt in to the tracked git hooks once per clone:
+
+```powershell
+pwsh ./tools/Install-DevHooks.ps1
+```
+
+This points `core.hooksPath` at `.githooks/`, which currently provides a `pre-push` hook that runs PSScriptAnalyzer with the same gate the CI workflow uses. The hook aborts a push on any finding (Errors / Warnings / Information all count, because CI uses `-EnableExit`). To bypass for an emergency push, use `git push --no-verify`. To opt back out: `pwsh ./tools/Install-DevHooks.ps1 -Disable`.
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
