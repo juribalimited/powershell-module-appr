@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# pre-push: run PSScriptAnalyzer with the same gate the CI workflow uses.
+# Aborts the push on any finding (Error / Warning / Information all count
+# because the upstream CI uses -EnableExit, which exits non-zero on any
+# rule hit).
+#
+# Opt in once per clone with:
+#     pwsh ./tools/Install-DevHooks.ps1
+# (or `git config core.hooksPath .githooks`). Bypass for an emergency
+# push with `git push --no-verify`.
+
+set -e
+
+if ! command -v pwsh >/dev/null 2>&1; then
+    cat >&2 <<'EOF'
+pre-push: pwsh (PowerShell 7+) not on PATH — cannot run PSScriptAnalyzer.
+        Install PowerShell 7 (https://aka.ms/powershell) or push with
+        --no-verify if you've already validated the change another way.
+EOF
+    exit 1
+fi
+
+echo "→ pre-push: running PSScriptAnalyzer against ./Juriba.AppR ..."
+
+# Run the analyzer. pwsh exits non-zero on any rule hit (matches CI).
+pwsh -NoProfile -Command '
+    if (-not (Get-Module -ListAvailable PSScriptAnalyzer -ErrorAction SilentlyContinue)) {
+        Write-Host "  installing PSScriptAnalyzer (one-time)..."
+        Install-Module PSScriptAnalyzer -Scope CurrentUser -Force | Out-Null
+    }
+    $r = Invoke-ScriptAnalyzer -Path ./Juriba.AppR -Recurse -ExcludeRule PSAvoidTrailingWhitespace
+    if ($r) {
+        $r | Format-List ScriptName, RuleName, Severity, Line, Column, Message
+        Write-Host ("  -> {0} finding(s); push aborted." -f $r.Count) -ForegroundColor Red
+        Write-Host "  Fix the issues above (or push with --no-verify to skip this check)." -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "  -> clean" -ForegroundColor Green
+'
+exit $?
