@@ -1,6 +1,6 @@
 # Juriba App Readiness PowerShell Module
 
-PowerShell module and automation examples for [Juriba App Readiness](https://www.juriba.com) (AppR). Provides 43 cmdlets covering the full application lifecycle — connect, upload, package, test, publish — plus ready-to-run example scripts for common automation patterns.
+PowerShell module and automation examples for [Juriba App Readiness](https://www.juriba.com) (AppR). Provides 51 cmdlets covering the full application lifecycle — connect, upload, package, test, publish, and import from MECM/SCCM — plus ready-to-run example scripts for common automation patterns.
 
 ## Compatibility
 
@@ -79,6 +79,7 @@ The [Examples](Juriba.AppR/Examples/) folder contains ready-to-run automation sc
 | `Test-WatchAndPublishIntune.ps1` | Poll for apps with passed smoke tests, auto-publish to Intune. |
 | `Invoke-JuribaAppRSelfService.ps1` | Interactive self-service packaging — KB search or local file upload. |
 | `Invoke-JuribaAppRSelfServiceWithTesting.ps1` | Same, plus live smoke-test visibility after packaging completes. |
+| `Import-MECMAppAndSmokeTest.ps1` | Import a CM (MECM/SCCM) application via the configured connector and run a smoke test against the resulting AppR app. |
 | `Export-MSIXAppAttachToShare.ps1` | Download MSIX App Attach packages from a generic integration to an SMB share. |
 
 ## Cmdlet Reference
@@ -138,7 +139,7 @@ The tables below summarize what's available.
 
 | Cmdlet | Description | v6 Status |
 |--------|-------------|-----------|
-| `Search-JuribaAppRKnowledgeBase` | Search the Juriba KB by name, or get versions by ID (auto-fallback to UDA API) | OK |
+| `Search-JuribaAppRKnowledgeBase` | Search the Juriba KB by name (v6 OData contract with v5 fallback), or get versions by ID; `-UseUDA` as explicit opt-in | OK |
 | `Get-JuribaAppRCommandSuggestion` | Get install command suggestions (KB, Programmatic, AI) | OK |
 
 ### Packages
@@ -173,6 +174,28 @@ The tables below summarize what's available.
 | `Invoke-JuribaAppRPublishIntune` | Publish a package to Microsoft Intune | OK |
 | `Invoke-JuribaAppRPublishMECM` | Publish a package to MECM/SCCM | OK |
 | `Invoke-JuribaAppRPublishGeneric` | Publish to a generic integration (auto-populates required fields) | OK |
+
+### MECM (SCCM) Import
+
+These cmdlets pull a customer's MECM application catalogue **into** App Readiness — the inbound counterpart to `Invoke-JuribaAppRPublishMECM`. The import body shape (CM-side `originalApplicationId` + `model`) is derived from the scan-list cmdlet so callers don't need to know the wire format.
+
+| Cmdlet | Description |
+|--------|-------------|
+| `Get-JuribaAppRMECMProvider` | List configured integration providers (MECM + Intune) or get a single provider by `-Id` |
+| `Get-JuribaAppRMECMImportAvailability` | Preflight check — returns `1` when a connector is configured and ready, `0` otherwise |
+| `Get-JuribaAppRMECMScanList` | List applications discovered by an integration scan (the table the AppR UI's Scan Import page binds to) |
+| `Start-JuribaAppRMECMImport` | Trigger the import — accepts pipeline input from `Get-JuribaAppRMECMScanList` and derives the body fields automatically |
+| `Get-JuribaAppRMECMImportEvent` | Get the import event log |
+| `Set-JuribaAppRMECMProviderUniqueness` | Toggle uniqueness on a single provider |
+| `Start-JuribaAppRMECMScan` | Trigger an integration scan so newly-created CM applications appear in the scan list without waiting for the autoscheduler |
+| `Remove-JuribaAppRMECMProvider` | Delete a single (`-Id`) or every (`-All`) provider configuration |
+
+```powershell
+# Recommended pattern — pick one row from the scan list and import it
+Get-JuribaAppRMECMScanList -ProviderId 7 |
+    Where-Object { $_.applicationName -eq 'Notepad++' } |
+    Start-JuribaAppRMECMImport
+```
 
 ### Generic Integration (v1 API)
 
@@ -235,6 +258,10 @@ Application name, manufacturer, and version are resolved in order:
 | Pull back QR/UAT results | `Get-JuribaAppRQualityReview` |
 | Pull back assignment info | `Get-JuribaAppRApplication` |
 | Search Juriba KB | `Search-JuribaAppRKnowledgeBase` |
+| List MECM/SCCM provider config | `Get-JuribaAppRMECMProvider` |
+| List CM applications discovered by a scan | `Get-JuribaAppRMECMScanList` |
+| Import a CM application into AppR | `Start-JuribaAppRMECMImport` |
+| Diagnose MECM import progress / errors | `Get-JuribaAppRMECMImportEvent` |
 
 ## Contributing
 
